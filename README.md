@@ -112,12 +112,16 @@ Runtime dependencies are FastAPI/Uvicorn for HTTP, Pydantic Settings for configu
 ## Docker
 
 ```bash
-docker build -t ip-country-api:phase-1 .
-docker run --read-only --tmpfs /tmp --user 10001:10001 \
-  -e DATABASE_URL -e IPINFO_TOKEN -p 8000:8000 ip-country-api:phase-1
+cd /home/arvan
+docker build -f app/Dockerfile -t ip-country-api:phase-1.5 .
+docker run --read-only --tmpfs /tmp --cap-drop ALL \
+  --security-opt no-new-privileges --user 10001:10001 \
+  -e DATABASE_URL -e IPINFO_TOKEN -p 8080:8080 ip-country-api:phase-1.5
 ```
 
 The multi-stage image installs runtime dependencies from `uv.lock`, contains no package manager or development group, uses exec-form Python startup, handles SIGTERM through Uvicorn, and stores no local persistent state.
+
+The container contract is port 8080, liveness `/health/live`, readiness `/health/ready`, and Prometheus scrape path `/metrics`. Alembic remains an explicit command and will later run in a dedicated Kubernetes Job. Runtime configuration will later be split between ConfigMap and Secret.
 
 ## Troubleshooting
 

@@ -25,7 +25,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       APP_VERSION: ${APP_VERSION:-0.1.0}
       APP_HOST: 0.0.0.0
-      APP_PORT: 8000
+      APP_PORT: 8080
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ip_country}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your shell}@postgres:5432/${POSTGRES_DB:-ip_country}
@@ -46,7 +46,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "${APP_PORT:-8080}:8080"
     read_only: true
     tmpfs:
       - /tmp
