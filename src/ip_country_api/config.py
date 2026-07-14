@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,9 +31,9 @@ class Settings(BaseSettings):
     database_pool_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
     database_connect_timeout_seconds: int = Field(default=5, gt=0, le=60)
 
-    geoip_provider: Literal["ipinfo"] = "ipinfo"
+    geoip_provider: Literal["fake", "ipinfo"] = "ipinfo"
     geoip_provider_base_url: str = "https://api.ipinfo.io"
-    ipinfo_token: SecretStr
+    ipinfo_token: SecretStr | None = None
     geoip_provider_timeout_seconds: float = Field(default=3.0, gt=0, le=30)
     geoip_provider_max_retries: int = Field(default=2, ge=0, le=5)
     geoip_cache_ttl_seconds: int = Field(default=2_592_000, ge=60, le=31_536_000)
@@ -50,12 +50,15 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must use PostgreSQL with psycopg")
         return value
 
-    @field_validator("ipinfo_token")
-    @classmethod
-    def require_token(cls, value: SecretStr) -> SecretStr:
-        if not value.get_secret_value().strip():
-            raise ValueError("IPINFO_TOKEN must not be empty")
-        return value
+    @model_validator(mode="after")
+    def require_ipinfo_token(self) -> "Settings":
+        if self.geoip_provider == "ipinfo" and (
+            self.ipinfo_token is None or not self.ipinfo_token.get_secret_value().strip()
+        ):
+            raise ValueError("IPINFO_TOKEN is required when GEOIP_PROVIDER=ipinfo")
+        if self.app_env == "production" and self.geoip_provider == "fake":
+            raise ValueError("the fake provider cannot be enabled in production")
+        return self
 
     @field_validator("geoip_provider_base_url")
     @classmethod

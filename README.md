@@ -2,7 +2,7 @@
 
 ## Architecture
 
-FastAPI owns HTTP transport only. Typed domain models and `IPLookupService` implement validation, cache-aside ordering, TTL, and response source. `LookupRepository` abstracts persistence; its PostgreSQL implementation uses SQLAlchemy async sessions and an atomic `ON CONFLICT` upsert. `GeoIPProvider` abstracts external resolution; `IPinfoLiteProvider` reuses one lifespan-owned `httpx.AsyncClient`. The engine, HTTP client, service graph, and redacted startup logging are created and closed in application lifespan.
+FastAPI owns HTTP transport only. Typed domain models and `IPLookupService` implement validation, cache-aside ordering, TTL, and response source. `LookupRepository` abstracts persistence; its PostgreSQL implementation uses SQLAlchemy async sessions and an atomic `ON CONFLICT` upsert. `GeoIPProvider` abstracts resolution. `FakeGeoIPProvider` provides deterministic, network-free development fixtures, while `IPinfoLiteProvider` reuses one lifespan-owned `httpx.AsyncClient`. The engine, optional HTTP client, service graph, and redacted startup logging are created and closed in application lifespan.
 
 ## API and errors
 
@@ -26,15 +26,40 @@ The primary key prevents duplicates across replicas. Multiple simultaneous cache
 | `DATABASE_URL` | Secret PostgreSQL/psycopg URL; required |
 | `DATABASE_POOL_SIZE`, `DATABASE_MAX_OVERFLOW` | Bounded per-process pool |
 | `DATABASE_POOL_TIMEOUT_SECONDS`, `DATABASE_CONNECT_TIMEOUT_SECONDS` | Database bounds |
-| `GEOIP_PROVIDER`, `GEOIP_PROVIDER_BASE_URL` | Provider selection and HTTPS base |
-| `IPINFO_TOKEN` | Secret provider credential; required |
+| `GEOIP_PROVIDER`, `GEOIP_PROVIDER_BASE_URL` | `fake` for non-production local testing or `ipinfo`; HTTPS provider base |
+| `IPINFO_TOKEN` | Secret provider credential; required only for `ipinfo` |
 | `GEOIP_PROVIDER_TIMEOUT_SECONDS`, `GEOIP_PROVIDER_MAX_RETRIES` | External-call bounds |
 | `GEOIP_CACHE_TTL_SECONDS` | Cache lifetime |
 | `METRICS_ENABLED` | Custom metric recording |
 | `CORS_ALLOWED_ORIGINS` | JSON list; empty by default |
 | `TRUSTED_HOSTS` | Explicit JSON hostname list |
 
-`.env.example` contains names and safe placeholders only. The application does not load `.env`; inject variables into the process. Required secrets fail validation when missing.
+`.env.example` contains names and safe placeholders only. The application receives configuration from process environment variables. Local scripts explicitly source the ignored `.env.local`; the application never loads it implicitly. `ipinfo` fails validation without its token, and the fake provider fails validation in production mode.
+
+## Local environment and PostgreSQL
+
+Use the project-local environment; do not install packages globally:
+
+```bash
+cd /home/arvan/app
+uv sync --all-groups
+cd ..
+./scripts/setup-local-postgres.sh
+```
+
+The setup script creates or safely reuses only `arvan_ip_country_app` and `arvan_ip_country_dev`, verifies the role is non-superuser, and writes the generated local credential to mode-0600 `.env.local` without printing it. Both `.venv` and `.env.local` must remain untracked.
+
+Formal local runtime commands are:
+
+```bash
+cd /home/arvan/app
+uv sync --all-groups
+set -a; source .env.local; set +a
+uv run alembic upgrade head
+uv run uvicorn ip_country_api.main:app --host 0.0.0.0 --port 8080
+```
+
+From the repository root, `scripts/smoke-no-db.sh` proves graceful disconnected behavior and `scripts/smoke-db.sh` proves readiness, provider-to-database cache transition, row count, and metric samples.
 
 ## Migrations
 
@@ -80,6 +105,10 @@ TEST_DATABASE_URL='postgresql+psycopg://…' uv run pytest -m integration
 
 The first command set requires no services. Integration tests downgrade/upgrade only the explicitly supplied isolated test database. All provider tests use fakes or `httpx.MockTransport`; never provide a real token.
 
+## Dependency groups
+
+Runtime dependencies are FastAPI/Uvicorn for HTTP, Pydantic Settings for configuration, SQLAlchemy/psycopg/Alembic for PostgreSQL and migrations, HTTPX/tenacity for bounded provider calls, prometheus-client for metrics, structlog for JSON logs, and Jinja2 for the local UI. The development group contains pytest, pytest-asyncio, pytest-cov, Ruff, and mypy. `pyproject.toml` and `uv.lock` are canonical; no global or handwritten requirements installation is supported.
+
 ## Docker
 
 ```bash
@@ -92,7 +121,7 @@ The multi-stage image installs runtime dependencies from `uv.lock`, contains no 
 
 ## Troubleshooting
 
-- Startup validation errors: supply both secrets and ensure the database URL is PostgreSQL.
+- Startup validation errors: supply `DATABASE_URL`; supply `IPINFO_TOKEN` only for IPinfo, and never select the fake provider in production.
 - Readiness says schema unavailable: run the explicit Alembic migration.
 - Readiness says database unavailable: check network/DNS, credentials, failover endpoint, and pool timeout.
 - Provider errors: verify the injected token, outbound connectivity, configured HTTPS base URL, and rate limits without logging the credential.

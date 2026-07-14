@@ -41,9 +41,12 @@ async def database():  # type: ignore[no-untyped-def]
     environment["DATABASE_URL"] = TEST_DATABASE_URL or ""
     environment["IPINFO_TOKEN"] = "explicit-test-placeholder"
     subprocess.run(["uv", "run", "alembic", "downgrade", "base"], check=True, env=environment)
-    subprocess.run(["uv", "run", "alembic", "upgrade", "head"], check=True, env=environment)
     url = (TEST_DATABASE_URL or "").replace("postgresql://", "postgresql+psycopg://", 1)
     engine = create_async_engine(url)
+    with pytest.raises(DatabaseSchemaUnavailableError):
+        await _readiness_check(engine, 2)()
+    subprocess.run(["uv", "run", "alembic", "upgrade", "head"], check=True, env=environment)
+    await _readiness_check(engine, 2)()
     yield engine
     await engine.dispose()
 
@@ -68,7 +71,7 @@ async def test_migration_created_inet_table(database) -> None:  # type: ignore[n
     assert data_type == "inet"
 
 
-async def test_first_lookup_persists_and_second_uses_database(repository) -> None:  # type: ignore[no-untyped-def]
+async def test_first_lookup_persists_and_second_uses_database(repository, database) -> None:  # type: ignore[no-untyped-def]
     provider = CountingProvider()
     service = IPLookupService(repository, provider, 3600, ApplicationMetrics("integration"))
     first = await service.lookup("8.8.8.8")
@@ -76,6 +79,13 @@ async def test_first_lookup_persists_and_second_uses_database(repository) -> Non
     assert first.source == "provider"
     assert second.source == "database"
     assert provider.calls == 1
+    async with create_session_factory(database)() as session:
+        count = await session.scalar(
+            select(func.count())
+            .select_from(IPLookupCache)
+            .where(IPLookupCache.ip_address == "8.8.8.8")
+        )
+    assert count == 1
 
 
 async def test_expired_record_is_refreshed(repository) -> None:  # type: ignore[no-untyped-def]

@@ -19,6 +19,8 @@ from ip_country_api.domain.errors import (
 )
 from ip_country_api.observability.logging import configure_logging
 from ip_country_api.observability.metrics import ApplicationMetrics
+from ip_country_api.providers.base import GeoIPProvider
+from ip_country_api.providers.fake import FakeGeoIPProvider
 from ip_country_api.providers.ipinfo import IPinfoLiteProvider
 from ip_country_api.repositories.ip_lookup_repository import PostgreSQLLookupRepository
 from ip_country_api.services.ip_lookup_service import IPLookupService
@@ -34,21 +36,28 @@ def build_lifespan(configured_settings: Settings | None = None):  # type: ignore
         metrics = ApplicationMetrics(settings.app_version, settings.metrics_enabled)
         engine = create_database_engine(settings)
         sessions = create_session_factory(engine)
-        client = httpx.AsyncClient(
-            base_url=settings.geoip_provider_base_url,
-            timeout=httpx.Timeout(settings.geoip_provider_timeout_seconds),
-            follow_redirects=False,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": f"ip-country-api/{settings.app_version}",
-            },
-        )
-        provider = IPinfoLiteProvider(
-            client,
-            settings.ipinfo_token.get_secret_value(),
-            settings.geoip_provider_max_retries,
-            metrics,
-        )
+        client: httpx.AsyncClient | None = None
+        provider: GeoIPProvider
+        if settings.geoip_provider == "fake":
+            provider = FakeGeoIPProvider(metrics)
+        else:
+            client = httpx.AsyncClient(
+                base_url=settings.geoip_provider_base_url,
+                timeout=httpx.Timeout(settings.geoip_provider_timeout_seconds),
+                follow_redirects=False,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": f"ip-country-api/{settings.app_version}",
+                },
+            )
+            if settings.ipinfo_token is None:  # protected by Settings validation
+                raise RuntimeError("validated IPinfo token is unavailable")
+            provider = IPinfoLiteProvider(
+                client,
+                settings.ipinfo_token.get_secret_value(),
+                settings.geoip_provider_max_retries,
+                metrics,
+            )
         repository = PostgreSQLLookupRepository(sessions, metrics)
 
         app.state.app_name = settings.app_name
@@ -64,7 +73,8 @@ def build_lifespan(configured_settings: Settings | None = None):  # type: ignore
         try:
             yield
         finally:
-            await client.aclose()
+            if client is not None:
+                await client.aclose()
             await engine.dispose()
             logger.info("application_stopped")
 
