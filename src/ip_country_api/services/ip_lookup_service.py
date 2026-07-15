@@ -1,11 +1,15 @@
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
+import structlog
+
 from ip_country_api.domain.ip_validation import validate_public_ip
 from ip_country_api.domain.models import CacheRecord, LookupResult
 from ip_country_api.observability.metrics import ApplicationMetrics
 from ip_country_api.providers.base import GeoIPProvider
 from ip_country_api.repositories.ip_lookup_repository import LookupRepository
+
+logger = structlog.get_logger()
 
 
 class IPLookupService:
@@ -29,6 +33,7 @@ class IPLookupService:
         cached = await self._repository.get(ip)
         if cached is not None and cached.expires_at > now:
             self._metrics.lookup("database", "success")
+            logger.info("lookup_completed", lookup_source="database")
             return LookupResult(
                 ip=ip,
                 country_code=cached.country_code,
@@ -57,6 +62,7 @@ class IPLookupService:
             raise
 
         self._metrics.lookup("provider", "success")
+        logger.info("lookup_completed", lookup_source="provider")
         return LookupResult(
             ip=ip,
             country_code=record.country_code,

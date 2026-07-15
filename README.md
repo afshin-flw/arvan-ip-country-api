@@ -93,7 +93,7 @@ IP addresses, countries, request IDs, exception messages, raw URLs, and environm
 
 ## Logging and correlation
 
-JSON is the runtime default. A syntactically bounded inbound `X-Request-ID` is propagated; otherwise a UUID is generated. Logs include bounded route, method, status, duration, provider/result/error fields where applicable. The queried IP is not logged. Known credential keys are redacted, and startup logs only the explicit non-secret summary.
+JSON is the runtime default. A syntactically bounded inbound `X-Request-ID` is propagated; otherwise a UUID is generated. Logs include bounded route, method, status, duration, `lookup_source` (`provider` or `database`), and provider/result/error fields where applicable. The queried IP is not logged. Known credential keys are redacted, and startup logs only the explicit non-secret summary.
 
 ## Testing
 
@@ -122,6 +122,28 @@ docker run --read-only --tmpfs /tmp --cap-drop ALL \
 The multi-stage image installs runtime dependencies from `uv.lock`, contains no package manager or development group, uses exec-form Python startup, handles SIGTERM through Uvicorn, and stores no local persistent state.
 
 The container contract is port 8080, liveness `/health/live`, readiness `/health/ready`, and Prometheus scrape path `/metrics`. Alembic remains an explicit command and will later run in a dedicated Kubernetes Job. Runtime configuration will later be split between ConfigMap and Secret.
+
+## Persistent Docker demo
+
+The repository-level demo uses the already validated `ip-country-api:phase-1.5` image, `postgres:17.6-bookworm`, the private `arvan_ip_country_network`, and the persistent `arvan_ip_country_postgres_data` volume. PostgreSQL is not published on a host port. Its initializer creates `arvan_ip_country_app` as a login role without superuser, database-creation, role-creation, or replication privileges and makes it owner of the dedicated `arvan_ip_country` database.
+
+From `/home/arvan`:
+
+```bash
+make demo-up
+make demo-test
+make demo-status
+make demo-logs
+make demo-restart
+make demo-down       # preserves PostgreSQL data
+make demo-start      # starts again from the same volume
+```
+
+`demo-up` creates the ignored mode-0600 `app/.env.docker.local` when absent, starts PostgreSQL, runs `python -m alembic upgrade head` in a one-off application container, starts the API, and waits for readiness. It uses `GEOIP_PROVIDER=fake`, so no IPinfo token or external provider request is involved. `demo-test` verifies the UI, Swagger, ReDoc, probes, metrics, a provider-to-database cache transition, one normalized row, and bounded metric labels.
+
+Access URLs are `http://127.0.0.1:8080/`, `/docs`, `/redoc`, `/health/live`, `/health/ready`, and `/metrics`. For an SSH tunnel, run `ssh -L 18080:127.0.0.1:8080 <user>@<server>` and browse to `http://127.0.0.1:18080/`.
+
+Normal demo operations never delete the named volume. The explicit destructive reset is `docker compose --project-name arvan-ip-country --env-file app/.env.docker.local -f app/compose.yaml down -v`; do not use it when cached demo data must survive.
 
 ## Troubleshooting
 
