@@ -141,6 +141,8 @@ make demo-start      # starts again from the same volume
 
 `demo-up` creates the ignored mode-0600 `app/.env.docker.local` when absent, starts PostgreSQL, runs `python -m alembic upgrade head` in a one-off application container, starts the API, and waits for readiness. It uses `GEOIP_PROVIDER=fake`, so no IPinfo token or external provider request is involved. `demo-test` verifies the UI, Swagger, ReDoc, probes, metrics, a provider-to-database cache transition, one normalized row, and bounded metric labels.
 
+To enable real lookups for the persistent demo, set `GEOIP_PROVIDER=ipinfo` and `IPINFO_TOKEN=<token>` in the ignored mode-0600 `app/.env.docker.local`, then recreate only the application service. Compose injects the token at runtime; it must never be added to the image, committed environment examples, or application source.
+
 Access URLs are `http://127.0.0.1:8080/`, `/docs`, `/redoc`, `/health/live`, `/health/ready`, and `/metrics`. For an SSH tunnel, run `ssh -L 18080:127.0.0.1:8080 <user>@<server>` and browse to `http://127.0.0.1:18080/`.
 
 ## Presentation Web UI
