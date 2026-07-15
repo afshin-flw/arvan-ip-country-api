@@ -145,6 +145,10 @@ Access URLs are `http://127.0.0.1:8080/`, `/docs`, `/redoc`, `/health/live`, `/h
 
 Normal demo operations never delete the named volume. The explicit destructive reset is `docker compose --project-name arvan-ip-country --env-file app/.env.docker.local -f app/compose.yaml down -v`; do not use it when cached demo data must survive.
 
+## Helm deployment contract
+
+The application-only Helm chart is maintained at `deploy/helm/ip-country-api`. It injects safe settings through a ConfigMap, references `DATABASE_URL` and `IPINFO_TOKEN` from an existing Secret, runs Alembic in an explicit Helm hook Job, and deploys the web process without migration privileges or local persistence. See `docs/operations/helm-chart.md` for local rendering and installation guidance.
+
 ## Troubleshooting
 
 - Startup validation errors: supply `DATABASE_URL`; supply `IPINFO_TOKEN` only for IPinfo, and never select the fake provider in production.
