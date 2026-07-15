@@ -118,7 +118,7 @@ async def test_metrics_endpoint(client) -> None:  # type: ignore[no-untyped-def]
 async def test_web_page(client) -> None:  # type: ignore[no-untyped-def]
     response = await client.get("/")
     assert response.status_code == 200
-    assert "IP country lookup" in response.text
+    assert "IP Country Lookup" in response.text
     assert 'id="lookup-form"' in response.text
 
 

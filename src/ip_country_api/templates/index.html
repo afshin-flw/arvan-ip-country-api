@@ -3,43 +3,151 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Look up the country associated with a public IP address.">
-    <title>{{ app_name }}</title>
+    <meta name="description" content="Look up the country associated with any public IPv4 or IPv6 address.">
+    <title>IP Country Lookup · {{ app_name }}</title>
     <link rel="stylesheet" href="/static/app.css">
     <script src="/static/app.js" defer></script>
   </head>
-  <body>
-    <main class="shell">
-      <section class="hero" aria-labelledby="page-title">
-        <p class="eyebrow">ArvanCloud · SRE Challenge</p>
-        <h1 id="page-title">IP country lookup</h1>
-        <p class="intro">Enter a public IPv4 or IPv6 address. Results are served from the persistent cache whenever possible.</p>
+  <body data-state="idle">
+    <div class="background-grid" aria-hidden="true"></div>
 
-        <form id="lookup-form" novalidate>
-          <label for="ip-address">IP address</label>
-          <div class="input-row">
-            <input id="ip-address" name="ip" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="45" placeholder="8.8.8.8" required aria-describedby="form-message">
-            <button id="submit-button" type="submit"><span class="button-label">Look up</span><span class="spinner" aria-hidden="true"></span></button>
-          </div>
-          <p id="form-message" class="message" role="alert" aria-live="polite"></p>
-        </form>
-      </section>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="IP Country Lookup home">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span>
+          </span>
+          <span>IP Country Lookup</span>
+        </a>
 
-      <section id="result" class="result" aria-labelledby="country-name" hidden>
-        <div class="result-heading">
-          <div>
-            <p class="eyebrow">Country</p>
-            <h2 id="country-name"></h2>
-          </div>
-          <span id="source" class="badge"></span>
+        <div class="header-actions">
+          <span class="tech-badge">FastAPI <i aria-hidden="true"></i> PostgreSQL <i aria-hidden="true"></i> Prometheus</span>
+          <nav class="utility-nav" aria-label="Technical resources">
+            <a href="/docs">API Docs</a>
+            <a href="/metrics">Metrics</a>
+            <a href="/health/ready">Health</a>
+          </nav>
         </div>
-        <dl>
-          <div><dt>Country code</dt><dd id="country-code"></dd></div>
-          <div><dt>Normalized IP</dt><dd id="normalized-ip"></dd></div>
-          <div><dt>Fetched</dt><dd id="fetched-at"></dd></div>
-          <div><dt>Expires</dt><dd id="expires-at"></dd></div>
-        </dl>
-      </section>
-    </main>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="page-title">
+          <p class="eyebrow"><span aria-hidden="true"></span> Live IP intelligence</p>
+          <h1 id="page-title">Find the country behind any public IP address</h1>
+          <p class="hero-copy">Results are resolved through an external GeoIP provider and cached in PostgreSQL for faster future lookups.</p>
+        </section>
+
+        <section class="lookup-card" aria-labelledby="lookup-title">
+          <div class="lookup-heading">
+            <div>
+              <p class="section-kicker">IPv4 &amp; IPv6</p>
+              <h2 id="lookup-title">Look up an address</h2>
+            </div>
+            <span class="service-status"><span aria-hidden="true"></span> Service ready</span>
+          </div>
+
+          <form id="lookup-form" novalidate aria-busy="false">
+            <label for="ip-address">IP address</label>
+            <div class="input-row">
+              <div class="input-wrap">
+                <span class="input-icon" aria-hidden="true"></span>
+                <input
+                  id="ip-address"
+                  name="ip"
+                  type="text"
+                  inputmode="text"
+                  autocomplete="off"
+                  autocapitalize="none"
+                  spellcheck="false"
+                  maxlength="45"
+                  placeholder="8.8.8.8 or 2001:4860:4860::8888"
+                  required
+                  aria-describedby="input-hint form-message"
+                >
+              </div>
+              <button id="submit-button" class="primary-button" type="submit">
+                <span class="button-label">Look up IP</span>
+                <span class="button-loading" hidden>
+                  <span class="spinner" aria-hidden="true"></span>
+                  Looking up…
+                </span>
+              </button>
+            </div>
+            <div class="form-support">
+              <p id="input-hint">Enter a globally routable IPv4 or IPv6 address.</p>
+              <p id="form-message" class="field-message" role="alert" aria-live="assertive"></p>
+            </div>
+
+            <div class="examples" aria-label="Example IP addresses">
+              <span>Try an example</span>
+              <button type="button" class="example-button" data-example-ip="8.8.8.8">8.8.8.8</button>
+              <button type="button" class="example-button" data-example-ip="1.1.1.1">1.1.1.1</button>
+              <button type="button" class="example-button" data-example-ip="2001:4860:4860::8888">IPv6 example</button>
+            </div>
+          </form>
+        </section>
+
+        <div id="status-announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+
+        <section id="loading-state" class="state-card loading-state" aria-label="Lookup in progress" hidden>
+          <span class="loading-orbit" aria-hidden="true"><span></span></span>
+          <div>
+            <h2>Resolving this address</h2>
+            <p>Checking PostgreSQL first, then the GeoIP provider if needed.</p>
+          </div>
+        </section>
+
+        <section id="result" class="state-card result-card" aria-labelledby="country-name" tabindex="-1" hidden>
+          <div class="result-summary">
+            <div id="country-code" class="country-monogram" aria-label="Country code"></div>
+            <div class="result-title">
+              <p class="section-kicker">Lookup complete</p>
+              <h2 id="country-name"></h2>
+              <div id="source" class="source-badge">
+                <span class="source-icon" aria-hidden="true"></span>
+                <span id="source-label"></span>
+              </div>
+            </div>
+          </div>
+
+          <p id="source-note" class="source-note"></p>
+
+          <dl class="result-details">
+            <div>
+              <dt>IP address</dt>
+              <dd id="normalized-ip" class="mono-value"></dd>
+            </div>
+            <div>
+              <dt>Result source</dt>
+              <dd id="source-detail"></dd>
+            </div>
+            <div>
+              <dt>Fetched</dt>
+              <dd id="fetched-at"></dd>
+            </div>
+            <div>
+              <dt>Cache expires</dt>
+              <dd id="expires-at"></dd>
+            </div>
+          </dl>
+        </section>
+
+        <section id="error-state" class="state-card error-card" tabindex="-1" aria-labelledby="error-title" hidden>
+          <div class="error-icon" aria-hidden="true">!</div>
+          <div class="error-content">
+            <p class="section-kicker">Lookup not completed</p>
+            <h2 id="error-title">That IP address cannot be looked up</h2>
+            <p id="error-message">Please enter a valid public IPv4 or IPv6 address.</p>
+            <p id="request-id-wrap" class="request-id" hidden>Request ID: <code id="request-id"></code></p>
+            <button id="retry-button" class="secondary-button" type="button">Try again</button>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>Built for the ArvanCloud Site Reliability Engineer Challenge</p>
+        <p>FastAPI <span aria-hidden="true">·</span> PostgreSQL <span aria-hidden="true">·</span> Docker <span aria-hidden="true">·</span> Prometheus</p>
+      </footer>
+    </div>
   </body>
 </html>

@@ -25,7 +25,7 @@ services:
       - no-new-privileges:true
 
   app:
-    image: ip-country-api:phase-1.5
+    image: ip-country-api:phase-1.6
     container_name: arvan-ip-country-api
     restart: unless-stopped
     environment:

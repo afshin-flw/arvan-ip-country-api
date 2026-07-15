@@ -113,10 +113,10 @@ Runtime dependencies are FastAPI/Uvicorn for HTTP, Pydantic Settings for configu
 
 ```bash
 cd /home/arvan
-docker build -f app/Dockerfile -t ip-country-api:phase-1.5 .
+docker build -f app/Dockerfile -t ip-country-api:phase-1.6 .
 docker run --read-only --tmpfs /tmp --cap-drop ALL \
   --security-opt no-new-privileges --user 10001:10001 \
-  -e DATABASE_URL -e IPINFO_TOKEN -p 8080:8080 ip-country-api:phase-1.5
+  -e DATABASE_URL -e IPINFO_TOKEN -p 8080:8080 ip-country-api:phase-1.6
 ```
 
 The multi-stage image installs runtime dependencies from `uv.lock`, contains no package manager or development group, uses exec-form Python startup, handles SIGTERM through Uvicorn, and stores no local persistent state.
@@ -125,7 +125,7 @@ The container contract is port 8080, liveness `/health/live`, readiness `/health
 
 ## Persistent Docker demo
 
-The repository-level demo uses the already validated `ip-country-api:phase-1.5` image, `postgres:17.6-bookworm`, the private `arvan_ip_country_network`, and the persistent `arvan_ip_country_postgres_data` volume. PostgreSQL is not published on a host port. Its initializer creates `arvan_ip_country_app` as a login role without superuser, database-creation, role-creation, or replication privileges and makes it owner of the dedicated `arvan_ip_country` database.
+The repository-level demo uses the presentation UI image `ip-country-api:phase-1.6`, `postgres:17.6-bookworm`, the private `arvan_ip_country_network`, and the persistent `arvan_ip_country_postgres_data` volume. PostgreSQL is not published on a host port. Its initializer creates `arvan_ip_country_app` as a login role without superuser, database-creation, role-creation, or replication privileges and makes it owner of the dedicated `arvan_ip_country` database.
 
 From `/home/arvan`:
 
@@ -142,6 +142,31 @@ make demo-start      # starts again from the same volume
 `demo-up` creates the ignored mode-0600 `app/.env.docker.local` when absent, starts PostgreSQL, runs `python -m alembic upgrade head` in a one-off application container, starts the API, and waits for readiness. It uses `GEOIP_PROVIDER=fake`, so no IPinfo token or external provider request is involved. `demo-test` verifies the UI, Swagger, ReDoc, probes, metrics, a provider-to-database cache transition, one normalized row, and bounded metric labels.
 
 Access URLs are `http://127.0.0.1:8080/`, `/docs`, `/redoc`, `/health/live`, `/health/ready`, and `/metrics`. For an SSH tunnel, run `ssh -L 18080:127.0.0.1:8080 <user>@<server>` and browse to `http://127.0.0.1:18080/`.
+
+## Presentation Web UI
+
+The home page is a lightweight Jinja2, local CSS, and vanilla JavaScript interface for explaining and demonstrating the cache-aside lookup flow. It accepts public IPv4 and IPv6 addresses, shows an explicit loading state, and renders normalized country data without exposing raw API payloads. A **Fresh provider lookup** badge means the address missed the local cache and was retrieved and stored. A **PostgreSQL cache** badge means the result was served without another external request.
+
+The layout adapts from a centered two-column result grid on presentation screens to stacked controls and metadata on narrow mobile screens. Long IPv6 values wrap safely. The form has a visible label, keyboard submission, visible focus treatment, live status announcements, text alongside every status indicator, system dark mode, and reduced-motion support. Friendly error mappings retain the submitted IP while hiding internal exceptions.
+
+Rebuild and restart only the application service with:
+
+```bash
+cd /home/arvan
+sudo -n docker build -f app/Dockerfile -t ip-country-api:phase-1.6 .
+sudo -n docker compose --project-name arvan-ip-country \
+  --env-file app/.env.docker.local -f app/compose.yaml up -d --no-deps app
+```
+
+Presentation sequence:
+
+1. Open `http://127.0.0.1:8080/`.
+2. Submit a supported public IP and show the fresh provider result.
+3. Submit the same IP again and show the PostgreSQL cache result.
+4. Open `/metrics` and show the cache miss/hit and provider metrics.
+5. Open `/docs` and show the API contract.
+
+For direct access through a public IP or hostname, add only that exact value to the ignored `TRUSTED_HOSTS` JSON list in `app/.env.docker.local`, then recreate the application service. Do not use a wildcard trusted host.
 
 Normal demo operations never delete the named volume. The explicit destructive reset is `docker compose --project-name arvan-ip-country --env-file app/.env.docker.local -f app/compose.yaml down -v`; do not use it when cached demo data must survive.
 

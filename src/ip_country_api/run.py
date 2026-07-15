@@ -1,12 +1,14 @@
 import uvicorn
 
 from ip_country_api.config import get_settings
+from ip_country_api.main import create_app
 
 
 def main() -> None:
     settings = get_settings()
+    application = create_app(settings)
     uvicorn.run(
-        "ip_country_api.main:app",
+        application,
         host=settings.app_host,
         port=settings.app_port,
         log_config=None,
