@@ -89,9 +89,12 @@ jobs:
           import time
           import psycopg
 
+          database_url = os.environ["TEST_DATABASE_URL"].replace(
+              "postgresql+psycopg://", "postgresql://", 1
+          )
           for attempt in range(30):
               try:
-                  with psycopg.connect(os.environ["TEST_DATABASE_URL"]):
+                  with psycopg.connect(database_url):
                       break
               except psycopg.OperationalError:
                   if attempt == 29:
