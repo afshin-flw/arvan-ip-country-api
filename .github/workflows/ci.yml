@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Python quality and isolated tests
+    runs-on: ubuntu-24.04
+    steps:
+      # actions/checkout v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      # actions/setup-python v5.6.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      # astral-sh/setup-uv v6.6.1
+      - uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6
+        with:
+          version: "0.11.20"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Validate lockfile
+        run: uv lock --check
+      - name: Install frozen dependencies
+        run: uv sync --frozen --all-groups
+      - name: Check formatting
+        run: uv run ruff format --check .
+      - name: Lint
+        run: uv run ruff check .
+      - name: Type check
+        run: uv run mypy
+      - name: Run unit and API tests
+        env:
+          APP_ENV: test
+          GEOIP_PROVIDER: fake
+        run: uv run pytest -m "unit or api" --cov --cov-report=term-missing --cov-report=xml
+
+  integration:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_DB: ip_country_test
+          POSTGRES_USER: ip_country_test
+          POSTGRES_PASSWORD: isolated-ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ip_country_test -d ip_country_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      APP_ENV: test
+      GEOIP_PROVIDER: fake
+      DATABASE_URL: postgresql+psycopg://ip_country_test:isolated-ci-only-password@127.0.0.1:5432/ip_country_test
+      TEST_DATABASE_URL: postgresql+psycopg://ip_country_test:isolated-ci-only-password@127.0.0.1:5432/ip_country_test
+    steps:
+      # actions/checkout v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      # actions/setup-python v5.6.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      # astral-sh/setup-uv v6.6.1
+      - uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6
+        with:
+          version: "0.11.20"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install frozen dependencies
+        run: uv sync --frozen --all-groups
+      - name: Wait for PostgreSQL
+        run: |
+          uv run python - <<'PY'
+          import os
+          import time
+          import psycopg
+
+          for attempt in range(30):
+              try:
+                  with psycopg.connect(os.environ["TEST_DATABASE_URL"]):
+                      break
+              except psycopg.OperationalError:
+                  if attempt == 29:
+                      raise
+                  time.sleep(2)
+          PY
+      - name: Validate migrations
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+      - name: Run PostgreSQL integration tests
+        run: uv run pytest -m integration
+
+  docker:
+    name: Production Docker build
+    runs-on: ubuntu-24.04
+    steps:
+      # actions/checkout v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      # docker/setup-buildx-action v3.11.1
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+      # docker/build-push-action v6.18.0
+      - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: arvan-ip-country-api:ci-${{ github.sha }}
+          build-args: |
+            APP_VERSION=ci-${{ github.sha }}
+            OCI_SOURCE=https://github.com/${{ github.repository }}
+            OCI_REVISION=${{ github.sha }}
+      - name: Inspect image contract
+        env:
+          IMAGE: arvan-ip-country-api:ci-${{ github.sha }}
+        run: |
+          test "$(docker image inspect "$IMAGE" --format '{{.Config.User}}')" = "10001:10001"
+          docker image inspect "$IMAGE" --format '{{json .Config.ExposedPorts}}' | grep -q '"8080/tcp"'
+          ! docker image inspect "$IMAGE" --format '{{json .Config.Env}}' |
+            grep -E '(DATABASE_URL=|IPINFO_TOKEN=|GITHUB_TOKEN=|GH_TOKEN=)'
+          docker run --rm --entrypoint sh "$IMAGE" -c \
+            'test -z "$(find / -xdev -type f -name ".env*" -print -quit 2>/dev/null)"'
+      - name: Smoke-test liveness
+        env:
+          IMAGE: arvan-ip-country-api:ci-${{ github.sha }}
+        run: |
+          container="$(
+            docker run -d --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+              --cap-drop ALL --security-opt no-new-privileges \
+              -e APP_ENV=test \
+              -e GEOIP_PROVIDER=fake \
+              -e DATABASE_URL=postgresql+psycopg://ci:ci@127.0.0.1:9/ci \
+              -p 127.0.0.1::8080 "$IMAGE"
+          )"
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          port="$(docker port "$container" 8080/tcp | sed 's/.*://')"
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "http://127.0.0.1:${port}/health/live" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs "$container"
+              exit 1
+            fi
+            sleep 2
+          done
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            "http://127.0.0.1:${port}/health/ready")" = "503"

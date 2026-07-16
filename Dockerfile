@@ -9,14 +9,19 @@ ENV UV_COMPILE_BYTECODE=1 \
     PATH="/opt/venv/bin:$PATH"
 WORKDIR /build
 COPY --from=uv-bin /uv /usr/local/bin/uv
-COPY app/pyproject.toml app/uv.lock app/README.md ./
+COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
-COPY app/src ./src
+COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.12.11-slim-bookworm AS runtime
 ARG APP_VERSION=0.1.0
+ARG OCI_SOURCE=https://github.com/afshin-flw/arvan-ip-country-api
+ARG OCI_REVISION=unknown
 LABEL org.opencontainers.image.title="IP Country API" \
+      org.opencontainers.image.description="Cache-aside IP country lookup API backed by PostgreSQL" \
+      org.opencontainers.image.source="${OCI_SOURCE}" \
+      org.opencontainers.image.revision="${OCI_REVISION}" \
       org.opencontainers.image.version="${APP_VERSION}"
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
@@ -28,8 +33,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app
 WORKDIR /app
 COPY --from=builder --chown=10001:10001 /opt/venv /opt/venv
-COPY --chown=10001:10001 app/alembic.ini ./
-COPY --chown=10001:10001 app/migrations migrations
+COPY --chown=10001:10001 alembic.ini ./
+COPY --chown=10001:10001 migrations migrations
 USER 10001:10001
 EXPOSE 8080
 CMD ["python", "-m", "ip_country_api.run"]

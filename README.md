@@ -1,185 +1,184 @@
 # IP Country API
 
+A production-oriented FastAPI service that resolves a public IPv4 or IPv6 address to a country and caches successful lookups in PostgreSQL. It includes a small responsive web UI, typed API responses, Alembic migrations, Prometheus metrics, structured logs, health probes, tests, and a non-root container image.
+
 ## Architecture
 
-FastAPI owns HTTP transport only. Typed domain models and `IPLookupService` implement validation, cache-aside ordering, TTL, and response source. `LookupRepository` abstracts persistence; its PostgreSQL implementation uses SQLAlchemy async sessions and an atomic `ON CONFLICT` upsert. `GeoIPProvider` abstracts resolution. `FakeGeoIPProvider` provides deterministic, network-free development fixtures, while `IPinfoLiteProvider` reuses one lifespan-owned `httpx.AsyncClient`. The engine, optional HTTP client, service graph, and redacted startup logging are created and closed in application lifespan.
+```text
+Client
+  → FastAPI
+  → PostgreSQL cache lookup
+      → hit: return cached country
+      → miss: query GeoIP provider
+              → store result
+              → return country
+```
 
-## API and errors
+The service validates and normalizes the address before querying PostgreSQL. An unexpired row is returned immediately. A missing or expired row is resolved through the configured GeoIP provider and atomically upserted. PostgreSQL uses an `INET` primary key, so concurrent writes converge on one cached row.
 
-`POST /api/v1/lookups` accepts `{"ip":"8.8.8.8"}` and returns normalized IP, ISO-like country code, country name, `database` or `provider` source, and UTC fetched/expiry timestamps. `/docs`, `/redoc`, and `/openapi.json` expose the typed contract.
+Source code lives in `src/ip_country_api`, tests in `tests`, and schema migrations in `migrations`.
 
-Errors use `{"error":{"code":"...","message":"...","request_id":"..."}}`. Stable codes are `INVALID_IP`, `NON_PUBLIC_IP`, `DATABASE_UNAVAILABLE`, `DATABASE_SCHEMA_UNAVAILABLE`, `PROVIDER_TIMEOUT`, `PROVIDER_AUTHENTICATION_FAILED`, `PROVIDER_RATE_LIMITED`, `PROVIDER_INVALID_RESPONSE`, `PROVIDER_UNAVAILABLE`, and `INTERNAL_ERROR`. Responses never contain SQL, connection details, raw upstream bodies, stack traces, or internal exception messages.
+## Routes
 
-## Cache-aside behavior and schema
-
-The service normalizes a global address with `ipaddress`, reads PostgreSQL, and returns an unexpired row without changing it. Missing or expired rows call the provider, calculate expiry from `GEOIP_CACHE_TTL_SECONDS`, atomically upsert, and return provider source. The `ip_lookup_cache` migration uses PostgreSQL `INET` as its primary key, `VARCHAR` country/provider fields, timezone-aware timestamps, and an expiry index.
-
-The primary key prevents duplicates across replicas. Multiple simultaneous cache misses can still make multiple external calls; they safely converge on one row. There is intentionally no distributed lock, background refresh, stale-if-error, or preloaded global dataset.
-
-## Environment reference
-
-| Variable | Purpose |
+| Route | Purpose |
 |---|---|
-| `APP_NAME`, `APP_ENV`, `APP_VERSION` | Identity and safe build metadata |
-| `APP_HOST`, `APP_PORT` | Listen address and port |
-| `LOG_LEVEL`, `LOG_FORMAT` | Logging threshold and `json`/`console` renderer |
-| `DATABASE_URL` | Secret PostgreSQL/psycopg URL; required |
-| `DATABASE_POOL_SIZE`, `DATABASE_MAX_OVERFLOW` | Bounded per-process pool |
-| `DATABASE_POOL_TIMEOUT_SECONDS`, `DATABASE_CONNECT_TIMEOUT_SECONDS` | Database bounds |
-| `GEOIP_PROVIDER`, `GEOIP_PROVIDER_BASE_URL` | `fake` for non-production local testing or `ipinfo`; HTTPS provider base |
-| `IPINFO_TOKEN` | Secret provider credential; required only for `ipinfo` |
-| `GEOIP_PROVIDER_TIMEOUT_SECONDS`, `GEOIP_PROVIDER_MAX_RETRIES` | External-call bounds |
-| `GEOIP_CACHE_TTL_SECONDS` | Cache lifetime |
-| `METRICS_ENABLED` | Custom metric recording |
-| `CORS_ALLOWED_ORIGINS` | JSON list; empty by default |
-| `TRUSTED_HOSTS` | Explicit JSON hostname list |
+| `GET /` | Responsive lookup UI |
+| `POST /api/v1/lookups` | Resolve `{"ip":"8.8.8.8"}` |
+| `GET /docs` | OpenAPI UI |
+| `GET /redoc` | ReDoc UI |
+| `GET /openapi.json` | OpenAPI document |
+| `GET /health/live` | Process liveness |
+| `GET /health/ready` | PostgreSQL and schema readiness |
+| `GET /metrics` | Prometheus metrics |
 
-`.env.example` contains names and safe placeholders only. The application receives configuration from process environment variables. Local scripts explicitly source the ignored `.env.local`; the application never loads it implicitly. `ipinfo` fails validation without its token, and the fake provider fails validation in production mode.
+Readiness performs a bounded database query and never calls the external provider. Errors use a stable `{"error": ...}` envelope and do not expose SQL, credentials, upstream bodies, or stack traces.
 
-## Local environment and PostgreSQL
+## Local Python setup
 
-Use the project-local environment; do not install packages globally:
-
-```bash
-cd /home/arvan/app
-uv sync --all-groups
-cd ..
-./scripts/setup-local-postgres.sh
-```
-
-The setup script creates or safely reuses only `arvan_ip_country_app` and `arvan_ip_country_dev`, verifies the role is non-superuser, and writes the generated local credential to mode-0600 `.env.local` without printing it. Both `.venv` and `.env.local` must remain untracked.
-
-Formal local runtime commands are:
-
-```bash
-cd /home/arvan/app
-uv sync --all-groups
-set -a; source .env.local; set +a
-uv run alembic upgrade head
-uv run uvicorn ip_country_api.main:app --host 0.0.0.0 --port 8080
-```
-
-From the repository root, `scripts/smoke-no-db.sh` proves graceful disconnected behavior and `scripts/smoke-db.sh` proves readiness, provider-to-database cache transition, row count, and metric samples.
-
-## Migrations
-
-Migrations are an explicit operational action:
-
-```bash
-uv run alembic upgrade head
-uv run alembic check
-```
-
-Application replicas never migrate. A future Kubernetes release will use a dedicated migration Job or release hook.
-
-## Health and metrics
-
-`GET /health/live` is process-only. `GET /health/ready` executes a timeout-bounded query against `ip_lookup_cache`, distinguishing database from schema unavailability and never calling IPinfo.
-
-`GET /metrics` exposes:
-
-- `ip_country_http_requests_total` (`method`, `route`, `status_code`)
-- `ip_country_http_request_duration_seconds` (`method`, `route`)
-- `ip_country_lookup_total` (`source`, `result`)
-- `ip_country_provider_requests_total` (`provider`, `result`)
-- `ip_country_provider_request_duration_seconds` (`provider`)
-- `ip_country_provider_errors_total` (`provider`, `error_type`)
-- `ip_country_database_operations_total` (`operation`)
-- `ip_country_database_operation_duration_seconds` (`operation`)
-- `ip_country_database_errors_total` (`operation`, `error_type`)
-- `ip_country_build_info` (`version`)
-
-IP addresses, countries, request IDs, exception messages, raw URLs, and environment values are forbidden labels. Health and metrics traffic is excluded from application request metrics.
-
-## Logging and correlation
-
-JSON is the runtime default. A syntactically bounded inbound `X-Request-ID` is propagated; otherwise a UUID is generated. Logs include bounded route, method, status, duration, `lookup_source` (`provider` or `database`), and provider/result/error fields where applicable. The queried IP is not logged. Known credential keys are redacted, and startup logs only the explicit non-secret summary.
-
-## Testing
+Python 3.12 and [uv](https://docs.astral.sh/uv/) are required. Dependencies are locked in `uv.lock`.
 
 ```bash
 uv sync --frozen --all-groups
+uv lock --check
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy
 uv run pytest -m "unit or api" --cov
-TEST_DATABASE_URL='postgresql+psycopg://…' uv run pytest -m integration
 ```
 
-The first command set requires no services. Integration tests downgrade/upgrade only the explicitly supplied isolated test database. All provider tests use fakes or `httpx.MockTransport`; never provide a real token.
+The application reads configuration only from process environment variables; it does not automatically load dotenv files.
 
-## Dependency groups
+## Local PostgreSQL with Compose
 
-Runtime dependencies are FastAPI/Uvicorn for HTTP, Pydantic Settings for configuration, SQLAlchemy/psycopg/Alembic for PostgreSQL and migrations, HTTPX/tenacity for bounded provider calls, prometheus-client for metrics, structlog for JSON logs, and Jinja2 for the local UI. The development group contains pytest, pytest-asyncio, pytest-cov, Ruff, and mypy. `pyproject.toml` and `uv.lock` are canonical; no global or handwritten requirements installation is supported.
+The included Compose stack uses isolated, explicitly non-production credentials and fake provider mode:
+
+```bash
+docker compose up --build
+curl http://127.0.0.1:8080/health/live
+curl http://127.0.0.1:8080/health/ready
+```
+
+The `migrate` service applies `alembic upgrade head` before the application starts. PostgreSQL is not exposed on a host port. To remove the local database volume:
+
+```bash
+docker compose down -v
+```
+
+Do not reuse the Compose credentials outside local development.
+
+## Alembic migrations and integration tests
+
+With an isolated PostgreSQL database:
+
+```bash
+export DATABASE_URL='postgresql+psycopg://test_user:test_password@127.0.0.1:5432/ip_country_test'
+export TEST_DATABASE_URL="$DATABASE_URL"
+export APP_ENV=test
+export GEOIP_PROVIDER=fake
+
+uv run alembic upgrade head
+uv run alembic check
+uv run pytest -m integration
+```
+
+Integration tests deliberately downgrade and upgrade only `TEST_DATABASE_URL`. Never point them at a shared or production database.
 
 ## Docker
 
-```bash
-cd /home/arvan
-docker build -f app/Dockerfile -t ip-country-api:phase-1.6 .
-docker run --read-only --tmpfs /tmp --cap-drop ALL \
-  --security-opt no-new-privileges --user 10001:10001 \
-  -e DATABASE_URL -e IPINFO_TOKEN -p 8080:8080 ip-country-api:phase-1.6
-```
-
-The multi-stage image installs runtime dependencies from `uv.lock`, contains no package manager or development group, uses exec-form Python startup, handles SIGTERM through Uvicorn, and stores no local persistent state.
-
-The container contract is port 8080, liveness `/health/live`, readiness `/health/ready`, and Prometheus scrape path `/metrics`. Alembic remains an explicit command and will later run in a dedicated Kubernetes Job. Runtime configuration will later be split between ConfigMap and Secret.
-
-## Persistent Docker demo
-
-The repository-level demo uses the presentation UI image `ip-country-api:phase-1.6`, `postgres:17.6-bookworm`, the private `arvan_ip_country_network`, and the persistent `arvan_ip_country_postgres_data` volume. PostgreSQL is not published on a host port. Its initializer creates `arvan_ip_country_app` as a login role without superuser, database-creation, role-creation, or replication privileges and makes it owner of the dedicated `arvan_ip_country` database.
-
-From `/home/arvan`:
+Build from the repository root:
 
 ```bash
-make demo-up
-make demo-test
-make demo-status
-make demo-logs
-make demo-restart
-make demo-down       # preserves PostgreSQL data
-make demo-start      # starts again from the same volume
+docker build -t arvan-ip-country-api:local .
 ```
 
-`demo-up` creates the ignored mode-0600 `app/.env.docker.local` when absent, starts PostgreSQL, runs `python -m alembic upgrade head` in a one-off application container, starts the API, and waits for readiness. It uses `GEOIP_PROVIDER=fake`, so no IPinfo token or external provider request is involved. `demo-test` verifies the UI, Swagger, ReDoc, probes, metrics, a provider-to-database cache transition, one normalized row, and bounded metric labels.
-
-To enable real lookups for the persistent demo, set `GEOIP_PROVIDER=ipinfo` and `IPINFO_TOKEN=<token>` in the ignored mode-0600 `app/.env.docker.local`, then recreate only the application service. Compose injects the token at runtime; it must never be added to the image, committed environment examples, or application source.
-
-Access URLs are `http://127.0.0.1:8080/`, `/docs`, `/redoc`, `/health/live`, `/health/ready`, and `/metrics`. For an SSH tunnel, run `ssh -L 18080:127.0.0.1:8080 <user>@<server>` and browse to `http://127.0.0.1:18080/`.
-
-## Presentation Web UI
-
-The home page is a lightweight Jinja2, local CSS, and vanilla JavaScript interface for explaining and demonstrating the cache-aside lookup flow. It accepts public IPv4 and IPv6 addresses, shows an explicit loading state, and renders normalized country data without exposing raw API payloads. A **Fresh provider lookup** badge means the address missed the local cache and was retrieved and stored. A **PostgreSQL cache** badge means the result was served without another external request.
-
-The layout adapts from a centered two-column result grid on presentation screens to stacked controls and metadata on narrow mobile screens. Long IPv6 values wrap safely. The form has a visible label, keyboard submission, visible focus treatment, live status announcements, text alongside every status indicator, system dark mode, and reduced-motion support. Friendly error mappings retain the submitted IP while hiding internal exceptions.
-
-Rebuild and restart only the application service with:
+Run with runtime configuration:
 
 ```bash
-cd /home/arvan
-sudo -n docker build -f app/Dockerfile -t ip-country-api:phase-1.6 .
-sudo -n docker compose --project-name arvan-ip-country \
-  --env-file app/.env.docker.local -f app/compose.yaml up -d --no-deps app
+docker run --rm --read-only --tmpfs /tmp --cap-drop ALL \
+  --security-opt no-new-privileges \
+  -p 127.0.0.1:8080:8080 \
+  -e APP_ENV=development \
+  -e GEOIP_PROVIDER=fake \
+  -e DATABASE_URL='postgresql+psycopg://user:password@database:5432/ip_country' \
+  arvan-ip-country-api:local
 ```
 
-Presentation sequence:
+The multi-stage image uses Python 3.12, installs frozen runtime dependencies, runs as UID/GID `10001:10001`, exposes port 8080, uses an exec-form command, and supports a read-only root filesystem.
 
-1. Open `http://127.0.0.1:8080/`.
-2. Submit a supported public IP and show the fresh provider result.
-3. Submit the same IP again and show the PostgreSQL cache result.
-4. Open `/metrics` and show the cache miss/hit and provider metrics.
-5. Open `/docs` and show the API contract.
+## Environment variables
 
-For direct access through a public IP or hostname, add only that exact value to the ignored `TRUSTED_HOSTS` JSON list in `app/.env.docker.local`, then recreate the application service. Do not use a wildcard trusted host.
+| Variable | Description |
+|---|---|
+| `APP_NAME`, `APP_ENV`, `APP_VERSION` | Service identity and environment |
+| `APP_HOST`, `APP_PORT` | Bind address and port |
+| `LOG_LEVEL`, `LOG_FORMAT` | Logging level and `json`/`console` format |
+| `DATABASE_URL` | Required PostgreSQL URL; secret |
+| `DATABASE_POOL_SIZE`, `DATABASE_MAX_OVERFLOW` | Connection-pool limits |
+| `DATABASE_POOL_TIMEOUT_SECONDS` | Pool wait timeout |
+| `DATABASE_CONNECT_TIMEOUT_SECONDS` | Connection timeout |
+| `GEOIP_PROVIDER` | `fake` or `ipinfo` |
+| `GEOIP_PROVIDER_BASE_URL` | HTTPS provider endpoint |
+| `IPINFO_TOKEN` | Required only for the IPinfo provider; secret |
+| `GEOIP_PROVIDER_TIMEOUT_SECONDS` | Provider timeout |
+| `GEOIP_PROVIDER_MAX_RETRIES` | Bounded provider retries |
+| `GEOIP_CACHE_TTL_SECONDS` | Cache lifetime |
+| `METRICS_ENABLED` | Enable application metrics |
+| `CORS_ALLOWED_ORIGINS` | JSON list of allowed origins |
+| `TRUSTED_HOSTS` | JSON list of accepted hostnames |
 
-Normal demo operations never delete the named volume. The explicit destructive reset is `docker compose --project-name arvan-ip-country --env-file app/.env.docker.local -f app/compose.yaml down -v`; do not use it when cached demo data must survive.
+Copy `.env.example` only as a reference. Keep real values in a secret manager or an ignored local file.
 
-## Helm deployment contract
+### Fake provider mode
 
-The application-only Helm chart is maintained at `deploy/helm/ip-country-api`. It injects safe settings through a ConfigMap, references `DATABASE_URL` and `IPINFO_TOKEN` from an existing Secret, runs Alembic in an explicit Helm hook Job, and deploys the web process without migration privileges or local persistence. See `docs/operations/helm-chart.md` for local rendering and installation guidance.
+Use `APP_ENV=development` or `APP_ENV=test` with `GEOIP_PROVIDER=fake`. This deterministic mode makes no external GeoIP request and is used by CI.
 
-## Troubleshooting
+### IPinfo provider mode
 
-- Startup validation errors: supply `DATABASE_URL`; supply `IPINFO_TOKEN` only for IPinfo, and never select the fake provider in production.
-- Readiness says schema unavailable: run the explicit Alembic migration.
-- Readiness says database unavailable: check network/DNS, credentials, failover endpoint, and pool timeout.
-- Provider errors: verify the injected token, outbound connectivity, configured HTTPS base URL, and rate limits without logging the credential.
-- Trusted-host rejection: add only the required hostname to `TRUSTED_HOSTS`; do not use a wildcard in production.
+Set `GEOIP_PROVIDER=ipinfo`, keep the default HTTPS base URL, and inject `IPINFO_TOKEN` at runtime. Production rejects fake provider mode and IPinfo mode rejects an empty token.
+
+## Metrics and logs
+
+Prometheus metrics cover HTTP requests, lookup source, provider calls, database operations, errors, duration, and build information. Labels use a bounded vocabulary and never contain queried IP addresses, credentials, raw URLs, or exception messages.
+
+Structured logs propagate a bounded `X-Request-ID`, omit the queried address, redact known credential fields, and emit only non-secret configuration summaries at startup.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on pull requests, pushes to `main`, and manual dispatch. It:
+
+- validates `uv.lock` and installs frozen dependencies;
+- checks Ruff formatting and lint;
+- runs strict mypy;
+- runs unit/API tests with coverage without external provider calls;
+- runs Alembic and integration tests against an isolated PostgreSQL service;
+- builds the `linux/amd64` production image without pushing it;
+- verifies the image is non-root, contains no dotenv file, starts in fake mode, and passes liveness.
+
+CI has only `contents: read` permission and requires no repository secret.
+
+## Releases and GHCR
+
+`.github/workflows/release.yml` accepts immutable semantic-version tags such as:
+
+```text
+v0.1.0
+```
+
+After all quality, migration, integration, and build gates pass, it publishes:
+
+```text
+ghcr.io/afshin-flw/arvan-ip-country-api:v0.1.0
+ghcr.io/afshin-flw/arvan-ip-country-api:sha-<short-commit>
+```
+
+It never publishes `latest`. The workflow uses the short-lived GitHub Actions `GITHUB_TOKEN` with only `contents: read` and `packages: write`, and attaches OCI source, revision, version, title, and description metadata.
+
+Future releases update this application, create a new application commit, push a fast-forward update to `main`, wait for CI, and create a new immutable semantic-version tag. Existing version tags must never move.
+
+## Secret policy
+
+Never commit `.env`, database credentials, IPinfo tokens, GitHub tokens, SSH keys, kubeconfig, TLS private keys, database dumps, runtime volumes, or generated artifacts. `.env.example` contains variable names and empty/safe values only. Tests use explicit isolated placeholders.
+
+## Non-goals
+
+This repository does not contain Ansible, Terraform, Kubernetes manifests, Helm charts, cluster credentials, infrastructure topology, deployment automation, or production secrets. GitHub Actions build and publish the application but do not deploy it.
