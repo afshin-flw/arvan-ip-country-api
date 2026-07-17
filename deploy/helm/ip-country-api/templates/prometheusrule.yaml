@@ -1,0 +1,92 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "ip-country-api.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ip-country-api.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: ip-country-api.availability
+      rules:
+        - alert: IPCountryAPIUnavailable
+          expr: (sum(up{namespace={{ .Release.Namespace | quote }},service={{ include "ip-country-api.fullname" . | quote }}}) or vector(0)) < 1
+          for: 5m
+          labels:
+            severity: critical
+            namespace: {{ .Release.Namespace }}
+            application: ip-country-api
+          annotations:
+            summary: IP Country API is unavailable
+            description: No healthy application scrape target has been available for five minutes.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api#troubleshooting
+        - alert: IPCountryAPINoReadyReplicas
+          expr: kube_deployment_status_replicas_available{namespace={{ .Release.Namespace | quote }},deployment={{ include "ip-country-api.fullname" . | quote }}} < {{ .Values.replicaCount }}
+          for: 5m
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+            application: ip-country-api
+          annotations:
+            summary: IP Country API has unavailable replicas
+            description: Fewer than the configured application replicas have been available for five minutes.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api#troubleshooting
+        - alert: IPCountryAPIExporterTargetDown
+          expr: up{namespace={{ .Release.Namespace | quote }},service={{ include "ip-country-api.fullname" . | quote }}} == 0
+          for: 3m
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+            application: ip-country-api
+          annotations:
+            summary: IP Country API metrics target is down
+            description: An application metrics endpoint has been down for three minutes.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api#troubleshooting
+    - name: ip-country-api.behavior
+      rules:
+        - alert: IPCountryAPIHighErrorRate
+          expr: sum(rate(ip_country_http_requests_total{namespace={{ .Release.Namespace | quote }},status_code=~"5.."}[5m])) / clamp_min(sum(rate(ip_country_http_requests_total{namespace={{ .Release.Namespace | quote }}}[5m])), 0.001) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+            application: ip-country-api
+          annotations:
+            summary: IP Country API HTTP error rate is high
+            description: More than five percent of measured application requests are returning server errors.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api#troubleshooting
+        - alert: IPCountryAPIHighLatency
+          expr: histogram_quantile(0.95, sum by (le) (rate(ip_country_http_request_duration_seconds_bucket{namespace={{ .Release.Namespace | quote }}}[5m]))) > 1
+          for: 10m
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+            application: ip-country-api
+          annotations:
+            summary: IP Country API latency is high
+            description: The measured p95 application request latency has exceeded one second.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api#troubleshooting
+        - alert: IPCountryAPIDatabaseErrors
+          expr: sum(increase(ip_country_database_errors_total{namespace={{ .Release.Namespace | quote }}}[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+            application: ip-country-api
+          annotations:
+            summary: IP Country API database errors detected
+            description: Application database operations have reported errors during the last five minutes.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api#troubleshooting
+        - alert: IPCountryAPIProviderErrors
+          expr: sum(increase(ip_country_provider_errors_total{namespace={{ .Release.Namespace | quote }}}[5m])) > 2
+          for: 5m
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+            application: ip-country-api
+          annotations:
+            summary: IP Country API provider errors detected
+            description: The external GeoIP provider has produced repeated errors during the last five minutes.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api#troubleshooting
+{{- end }}

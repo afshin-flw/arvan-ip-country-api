@@ -1,0 +1,62 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/afshin-flw/arvan-ip-country-api
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+runtime:
+  appName: IP Country API
+  appEnv: production
+  appVersion: 0.1.0
+  appHost: 0.0.0.0
+  appPort: 8080
+  logLevel: INFO
+  logFormat: json
+  databaseUrl: ""
+  databasePoolSize: 5
+  databaseMaxOverflow: 5
+  databasePoolTimeoutSeconds: 5
+  databaseConnectTimeoutSeconds: 5
+  geoipProvider: ipinfo
+  geoipProviderBaseUrl: https://api.ipinfo.io
+  ipinfoToken: ""
+  geoipProviderTimeoutSeconds: 3
+  geoipProviderMaxRetries: 2
+  geoipCacheTtlSeconds: 2592000
+  metricsEnabled: true
+  corsAllowedOrigins: []
+  trustedHosts:
+    - localhost
+    - 127.0.0.1
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+  nodePort: 30080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+monitoring:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+
+grafanaDashboard:
+  enabled: true
+
+podAnnotations: {}
+
+migration:
+  activeDeadlineSeconds: 300
+  backoffLimit: 2
+
+terminationGracePeriodSeconds: 30

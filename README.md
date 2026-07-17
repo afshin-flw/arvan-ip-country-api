@@ -179,6 +179,55 @@ Future releases update this application, create a new application commit, push a
 
 Never commit `.env`, database credentials, IPinfo tokens, GitHub tokens, SSH keys, kubeconfig, TLS private keys, database dumps, runtime volumes, or generated artifacts. `.env.example` contains variable names and empty/safe values only. Tests use explicit isolated placeholders.
 
+## Helm deployment
+
+The reusable chart at `deploy/helm/ip-country-api` deploys the existing immutable GHCR image. It creates a runtime Secret, runs Alembic in a pre-install/pre-upgrade hook Job, starts two non-root replicas on different nodes, exposes port 8080 through a NodePort Service, and provisions a ServiceMonitor, PrometheusRule, and Grafana dashboard.
+
+For the challenge environment, copy or recreate:
+
+```text
+deploy/environments/challenge/values.challenge.local.yaml
+```
+
+This file is intentionally local and ignored. It contains challenge runtime variables and must be recreated on another controller. Never commit it. The committed `values.challenge.example.yaml` contains placeholders and is used by CI for Helm lint and template validation.
+
+Manual deployment from the application repository root:
+
+```bash
+./deploy/scripts/deploy-challenge.sh
+./deploy/scripts/verify-challenge.sh
+```
+
+The current challenge Service uses NodePort `30080`. The application connects only to the CloudNativePG read/write Service through a `postgresql+psycopg://` URL. The Alembic hook must succeed before Helm creates or updates the application workload. Runtime values flow from the ignored local file into a Helm-managed Kubernetes Secret and then into explicit `secretKeyRef` entries.
+
+The current release flow is:
+
+```text
+GitHub Actions
+→ GHCR immutable image
+→ local Helm deployment
+→ K3s
+```
+
+The possible future CD flow is:
+
+```text
+GitHub release
+→ GitHub-hosted deploy job
+→ public K3s API
+→ helm upgrade --install
+```
+
+Future CD is intentionally not implemented in this repository. It requires a public API boundary and a restricted deployment ServiceAccount.
+
+## Troubleshooting
+
+- If migration fails, inspect the Helm hook Job and verify the CloudNativePG read/write Service and database URL.
+- If readiness fails, confirm that the migration reached `head` and the database Service is reachable.
+- If real lookups fail, verify provider egress and the runtime IPinfo token without logging it.
+- If monitoring targets are missing, inspect the ServiceMonitor selector and the `http` Service port.
+- If the dashboard is absent, verify that Grafana's sidecar watches all namespaces for `grafana_dashboard=1`.
+
 ## Non-goals
 
-This repository does not contain Ansible, Terraform, Kubernetes manifests, Helm charts, cluster credentials, infrastructure topology, deployment automation, or production secrets. GitHub Actions build and publish the application but do not deploy it.
+This repository does not contain Ansible, Terraform, cluster credentials, infrastructure topology, automatic CD, or production credentials. The chart deploys only the application runtime; infrastructure lifecycle remains outside this repository.

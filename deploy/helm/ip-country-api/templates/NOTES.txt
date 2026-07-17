@@ -1,0 +1,17 @@
+IP Country API has been installed in namespace {{ .Release.Namespace }}.
+
+Release image:
+  {{ include "ip-country-api.image" . }}
+
+NodePort endpoint:
+  http://<healthy-node-ip>:{{ .Values.service.nodePort }}
+
+Health endpoints:
+  /health/live
+  /health/ready
+
+Metrics endpoint:
+  /metrics
+
+The migration hook runs before every install and upgrade. Runtime credentials are
+stored in Secret {{ include "ip-country-api.secretName" . }}.

@@ -1,0 +1,37 @@
+{{- if .Values.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ip-country-api.fullname" . }}-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    {{- include "ip-country-api.labels" . | nindent 4 }}
+data:
+  ip-country-api-overview.json: |-
+    {
+      "uid": "ip-country-api-overview",
+      "title": "IP Country API Overview",
+      "tags": ["ip-country-api", "fastapi", "k3s"],
+      "timezone": "browser",
+      "schemaVersion": 41,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-6h", "to": "now"},
+      "panels": [
+        {"type":"timeseries","title":"Request rate","gridPos":{"x":0,"y":0,"w":8,"h":6},"targets":[{"expr":"sum by (status_code) (rate(ip_country_http_requests_total{namespace=\"{{ .Release.Namespace }}\"}[5m]))"}]},
+        {"type":"timeseries","title":"HTTP error rate","gridPos":{"x":8,"y":0,"w":8,"h":6},"targets":[{"expr":"sum(rate(ip_country_http_requests_total{namespace=\"{{ .Release.Namespace }}\",status_code=~\"4..|5..\"}[5m])) or vector(0)"}]},
+        {"type":"timeseries","title":"Request p95 latency","gridPos":{"x":16,"y":0,"w":8,"h":6},"targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(ip_country_http_request_duration_seconds_bucket{namespace=\"{{ .Release.Namespace }}\"}[5m])))"}]},
+        {"type":"timeseries","title":"Lookup rate","gridPos":{"x":0,"y":6,"w":8,"h":6},"targets":[{"expr":"sum by (source, result) (rate(ip_country_lookup_total{namespace=\"{{ .Release.Namespace }}\"}[5m])) or vector(0)"}]},
+        {"type":"timeseries","title":"Provider lookups","gridPos":{"x":8,"y":6,"w":8,"h":6},"targets":[{"expr":"sum by (provider, result) (rate(ip_country_provider_requests_total{namespace=\"{{ .Release.Namespace }}\"}[5m])) or vector(0)"}]},
+        {"type":"timeseries","title":"Database cache hits","gridPos":{"x":16,"y":6,"w":8,"h":6},"targets":[{"expr":"sum(rate(ip_country_lookup_total{namespace=\"{{ .Release.Namespace }}\",source=\"database\",result=\"success\"}[5m])) or vector(0)"}]},
+        {"type":"gauge","title":"Cache hit ratio","gridPos":{"x":0,"y":12,"w":8,"h":6},"fieldConfig":{"defaults":{"unit":"percentunit","min":0,"max":1}},"targets":[{"expr":"(sum(rate(ip_country_lookup_total{namespace=\"{{ .Release.Namespace }}\",source=\"database\",result=\"success\"}[5m])) / clamp_min(sum(rate(ip_country_lookup_total{namespace=\"{{ .Release.Namespace }}\",result=\"success\"}[5m])), 0.001)) or vector(0)"}]},
+        {"type":"timeseries","title":"Provider failures","gridPos":{"x":8,"y":12,"w":8,"h":6},"targets":[{"expr":"sum by (error_type) (rate(ip_country_provider_errors_total{namespace=\"{{ .Release.Namespace }}\"}[5m])) or vector(0)"}]},
+        {"type":"timeseries","title":"Database failures","gridPos":{"x":16,"y":12,"w":8,"h":6},"targets":[{"expr":"sum by (operation, error_type) (rate(ip_country_database_errors_total{namespace=\"{{ .Release.Namespace }}\"}[5m])) or vector(0)"}]},
+        {"type":"stat","title":"Pod readiness","gridPos":{"x":0,"y":18,"w":6,"h":5},"targets":[{"expr":"kube_deployment_status_replicas_available{namespace=\"{{ .Release.Namespace }}\",deployment=\"{{ include "ip-country-api.fullname" . }}\"}"}]},
+        {"type":"timeseries","title":"Pod restarts","gridPos":{"x":6,"y":18,"w":6,"h":5},"targets":[{"expr":"sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"{{ .Release.Namespace }}\",container=\"api\"})"}]},
+        {"type":"timeseries","title":"CPU","gridPos":{"x":12,"y":18,"w":6,"h":5},"targets":[{"expr":"sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"{{ .Release.Namespace }}\",container=\"api\"}[5m]))"}]},
+        {"type":"timeseries","title":"Memory","gridPos":{"x":18,"y":18,"w":6,"h":5},"targets":[{"expr":"sum by (pod) (container_memory_working_set_bytes{namespace=\"{{ .Release.Namespace }}\",container=\"api\"})"}]}
+      ]
+    }
+{{- end }}
