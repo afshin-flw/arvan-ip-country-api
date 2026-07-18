@@ -1,0 +1,23 @@
+{{- if .Values.observability.sreDashboards.enabled }}
+{{- $root := . }}
+{{- $dashboards := list
+  (dict "name" "arvan-challenge-sre-overview" "path" "dashboards/arvan-challenge-sre-overview.json" "folder" .Values.observability.sreDashboards.overviewFolder)
+  (dict "name" "ip-country-api-performance" "path" "dashboards/ip-country-api-performance.json" "folder" .Values.grafanaDashboard.folder)
+}}
+{{- range $dashboard := $dashboards }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ip-country-api.fullname" $root }}-{{ $dashboard.name }}
+  namespace: {{ $root.Release.Namespace }}
+  annotations:
+    k8s-sidecar-target-directory: {{ printf "/tmp/dashboards/%s" $dashboard.folder | quote }}
+  labels:
+    grafana_dashboard: "1"
+    {{- include "ip-country-api.labels" $root | nindent 4 }}
+data:
+  {{ base $dashboard.path }}: |-
+{{ $root.Files.Get $dashboard.path | replace "__APP_NAMESPACE__" $root.Release.Namespace | indent 4 }}
+{{- end }}
+{{- end }}

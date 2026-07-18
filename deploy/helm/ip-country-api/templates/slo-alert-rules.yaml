@@ -1,0 +1,86 @@
+{{- if and .Values.monitoring.enabled .Values.observability.slo.enabled .Values.observability.burnRateAlerts.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "ip-country-api.fullname" . }}-slo-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ip-country-api.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: ip-country-api.slo-burn-alerts
+      interval: 30s
+      rules:
+        - alert: IPCountryAPIAvailabilityFastBurn
+          expr: ip_country_api:availability_burn_rate:5m > 14.4 and ip_country_api:availability_burn_rate:1h > 14.4
+          for: 2m
+          labels:
+            severity: critical
+            component: slo-availability
+            application: ip-country-api
+            namespace: {{ .Release.Namespace }}
+            service: ip-country-api
+            slo: availability
+            objective: {{ .Values.observability.slo.availabilityTarget | quote }}
+          annotations:
+            summary: IP Country API availability error budget is burning rapidly
+            description: Both the five-minute and one-hour availability burn rates exceed 14.4.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api/blob/main/docs/sre-observability.md#availability-burn-alerts
+            dashboard_uid: arvan-challenge-sre-overview
+            dashboard_url: /d/arvan-challenge-sre-overview
+            dashboard_panel: Availability burn rate
+        - alert: IPCountryAPIAvailabilitySlowBurn
+          expr: ip_country_api:availability_burn_rate:1h > 3 and ip_country_api:availability_burn_rate:6h > 3
+          for: 15m
+          labels:
+            severity: warning
+            component: slo-availability
+            application: ip-country-api
+            namespace: {{ .Release.Namespace }}
+            service: ip-country-api
+            slo: availability
+            objective: {{ .Values.observability.slo.availabilityTarget | quote }}
+          annotations:
+            summary: IP Country API availability error budget is burning persistently
+            description: Both the one-hour and six-hour availability burn rates exceed 3.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api/blob/main/docs/sre-observability.md#availability-burn-alerts
+            dashboard_uid: arvan-challenge-sre-overview
+            dashboard_url: /d/arvan-challenge-sre-overview
+            dashboard_panel: Availability burn rate
+        - alert: IPCountryAPILatencyFastBurn
+          expr: ip_country_api:latency_burn_rate:5m > 14.4 and ip_country_api:latency_burn_rate:1h > 14.4
+          for: 2m
+          labels:
+            severity: critical
+            component: slo-latency
+            application: ip-country-api
+            namespace: {{ .Release.Namespace }}
+            service: ip-country-api
+            slo: latency
+            objective: {{ .Values.observability.slo.latencySuccessTarget | quote }}
+          annotations:
+            summary: IP Country API latency error budget is burning rapidly
+            description: Both the five-minute and one-hour latency burn rates exceed 14.4.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api/blob/main/docs/sre-observability.md#latency-burn-alerts
+            dashboard_uid: arvan-challenge-sre-overview
+            dashboard_url: /d/arvan-challenge-sre-overview
+            dashboard_panel: Latency burn rate
+        - alert: IPCountryAPILatencySlowBurn
+          expr: ip_country_api:latency_burn_rate:1h > 3 and ip_country_api:latency_burn_rate:6h > 3
+          for: 15m
+          labels:
+            severity: warning
+            component: slo-latency
+            application: ip-country-api
+            namespace: {{ .Release.Namespace }}
+            service: ip-country-api
+            slo: latency
+            objective: {{ .Values.observability.slo.latencySuccessTarget | quote }}
+          annotations:
+            summary: IP Country API latency error budget is burning persistently
+            description: Both the one-hour and six-hour latency burn rates exceed 3.
+            runbook_url: https://github.com/afshin-flw/arvan-ip-country-api/blob/main/docs/sre-observability.md#latency-burn-alerts
+            dashboard_uid: arvan-challenge-sre-overview
+            dashboard_url: /d/arvan-challenge-sre-overview
+            dashboard_panel: Latency burn rate
+{{- end }}

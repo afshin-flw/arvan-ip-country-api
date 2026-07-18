@@ -181,7 +181,9 @@ Never commit `.env`, database credentials, IPinfo tokens, GitHub tokens, SSH key
 
 ## Helm deployment
 
-The reusable chart at `deploy/helm/ip-country-api` deploys the existing immutable GHCR image. It creates a runtime Secret, runs Alembic in a pre-install/pre-upgrade hook Job, starts two non-root replicas on different nodes, exposes port 8080 through a NodePort Service, and provisions a ServiceMonitor, PrometheusRule, and Grafana dashboard.
+The reusable chart at `deploy/helm/ip-country-api` deploys the existing immutable GHCR image. It creates a runtime Secret, runs Alembic in a pre-install/pre-upgrade hook Job, starts two non-root replicas on different nodes, exposes port 8080 through a NodePort Service, and provisions ServiceMonitor, PrometheusRule, recording-rule, SLO alert, and Grafana dashboard resources.
+
+The application SRE observability pack adds reusable recording rules, rolling seven-day availability and latency SLOs, multi-window burn-rate alerts, and two linked dashboards for service and application analysis. The infrastructure repository owns the linked CloudNativePG and K3s dashboards. See [SRE observability](docs/sre-observability.md), the [verified metric inventory](docs/observability-metric-inventory.md), and [controlled performance validation](docs/performance-validation.md).
 
 For the challenge environment, copy or recreate:
 
@@ -191,11 +193,17 @@ deploy/environments/challenge/values.challenge.local.yaml
 
 This file is intentionally local and ignored. It contains challenge runtime variables and must be recreated on another controller. Never commit it. The committed `values.challenge.example.yaml` contains placeholders and is used by CI for Helm lint and template validation.
 
+For the Arvan controller, use `deploy/environments/arvan/values.arvan.local.yaml`
+from the committed `values.arvan.example.yaml`, then follow
+[the Arvan deployment guide](docs/arvan-deployment.md).
+
 Manual deployment from the application repository root:
 
 ```bash
 ./deploy/scripts/deploy-challenge.sh
 ./deploy/scripts/verify-challenge.sh
+python3 ./deploy/scripts/generate-observability-traffic.py --help
+python3 ./deploy/scripts/verify-sre-dashboards.py --help
 ```
 
 The current challenge Service uses NodePort `30080`. The application connects only to the CloudNativePG read/write Service through a `postgresql+psycopg://` URL. The Alembic hook must succeed before Helm creates or updates the application workload. Runtime values flow from the ignored local file into a Helm-managed Kubernetes Secret and then into explicit `secretKeyRef` entries.

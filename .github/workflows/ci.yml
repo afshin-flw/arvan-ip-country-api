@@ -185,9 +185,21 @@ jobs:
           tar -xzf "${archive}" -C "${install_dir}" --strip-components=1 linux-amd64/helm
           echo "${install_dir}" >>"${GITHUB_PATH}"
       - name: Lint chart
-        run: >-
-          helm lint deploy/helm/ip-country-api
-          --values deploy/environments/challenge/values.challenge.example.yaml
+        run: |
+          helm lint deploy/helm/ip-country-api \
+            --values deploy/environments/challenge/values.challenge.example.yaml
+          helm lint deploy/helm/ip-country-api \
+            --values deploy/environments/arvan/values.arvan.example.yaml
+      - name: Validate observability sources
+        run: |
+          python3 -m py_compile \
+            deploy/scripts/build-sre-dashboards.py \
+            deploy/scripts/generate-observability-traffic.py \
+            deploy/scripts/verify-sre-dashboards.py
+          python3 deploy/scripts/build-sre-dashboards.py --check
+          for dashboard in deploy/helm/ip-country-api/dashboards/*.json; do
+            python3 -m json.tool "${dashboard}" >/dev/null
+          done
       - name: Render chart
         run: |
           helm template ip-country-api deploy/helm/ip-country-api \
@@ -197,3 +209,12 @@ jobs:
           grep -q 'ghcr.io/afshin-flw/arvan-ip-country-api@sha256:081ba4b3' \
             "${RUNNER_TEMP}/ip-country-api-rendered.yaml"
           ! grep -q 'values.challenge.local' "${RUNNER_TEMP}/ip-country-api-rendered.yaml"
+          grep -q 'name: ip-country-api-sre-recording' "${RUNNER_TEMP}/ip-country-api-rendered.yaml"
+          grep -q 'name: ip-country-api-slo-alerts' "${RUNNER_TEMP}/ip-country-api-rendered.yaml"
+          for uid in \
+            arvan-challenge-sre-overview \
+            ip-country-api-performance; do
+            grep -q '"uid": "'"${uid}"'"' "${RUNNER_TEMP}/ip-country-api-rendered.yaml"
+          done
+          ! grep -q '"uid": "cloudnativepg-sre-performance"' "${RUNNER_TEMP}/ip-country-api-rendered.yaml"
+          ! grep -q '"uid": "k3s-reliability-capacity"' "${RUNNER_TEMP}/ip-country-api-rendered.yaml"

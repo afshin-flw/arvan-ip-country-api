@@ -55,6 +55,11 @@ ignore = ["S101"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ASYNC221", "S104", "S105", "S106", "S607"]
 "migrations/**/*.py" = ["E501"]
+# Dashboard definitions keep long PromQL expressions intact for review and reproducibility.
+"deploy/scripts/build-sre-dashboards.py" = ["E501", "E741"]
+# Both bounded HTTP clients validate their URL scheme before urllib is invoked.
+"deploy/scripts/generate-observability-traffic.py" = ["S310"]
+"deploy/scripts/verify-sre-dashboards.py" = ["S310"]
 
 [tool.mypy]
 python_version = "3.12"

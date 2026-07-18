@@ -1,0 +1,127 @@
+{{- if and .Values.monitoring.enabled .Values.observability.recordingRules.enabled .Values.observability.slo.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "ip-country-api.fullname" . }}-sre-recording
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ip-country-api.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: ip-country-api.sre-recording
+      interval: 30s
+      rules:
+        - record: ip_country_api:http_requests:rate5m
+          expr: sum(rate(ip_country_http_requests_total{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups"}[5m]))
+        - record: ip_country_api:http_requests:rate1h
+          expr: sum(rate(ip_country_http_requests_total{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups"}[1h]))
+        - record: ip_country_api:http_5xx:rate5m
+          expr: sum(rate(ip_country_http_requests_total{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups",status_code=~"5.."}[5m])) or vector(0)
+        {{- range $window := list "5m" "1h" "6h" "24h" "7d" }}
+        - record: ip_country_api:http_5xx_ratio:{{ $window }}
+          expr: >-
+            (((sum(rate(ip_country_http_requests_total{namespace={{ $.Release.Namespace | quote }},route="/api/v1/lookups",status_code=~"5.."}[{{ $window }}])) or vector(0))
+            / clamp_min(sum(rate(ip_country_http_requests_total{namespace={{ $.Release.Namespace | quote }},route="/api/v1/lookups"}[{{ $window }}])), 0.000000000001))
+            and on() (sum(increase(ip_country_http_requests_total{namespace={{ $.Release.Namespace | quote }},route="/api/v1/lookups"}[{{ $window }}])) > 0))
+        {{- end }}
+        - record: ip_country_api:http_latency_p50_seconds:5m
+          expr: >-
+            (histogram_quantile(0.50, sum by (le) (rate(ip_country_http_request_duration_seconds_bucket{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups"}[5m])))
+            and on() (sum(increase(ip_country_http_request_duration_seconds_count{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups"}[5m])) > 0))
+        - record: ip_country_api:http_latency_p95_seconds:5m
+          expr: >-
+            (histogram_quantile(0.95, sum by (le) (rate(ip_country_http_request_duration_seconds_bucket{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups"}[5m])))
+            and on() (sum(increase(ip_country_http_request_duration_seconds_count{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups"}[5m])) > 0))
+        - record: ip_country_api:http_latency_p99_seconds:5m
+          expr: >-
+            (histogram_quantile(0.99, sum by (le) (rate(ip_country_http_request_duration_seconds_bucket{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups"}[5m])))
+            and on() (sum(increase(ip_country_http_request_duration_seconds_count{namespace={{ .Release.Namespace | quote }},route="/api/v1/lookups"}[5m])) > 0))
+        {{- range $window := list "5m" "1h" "6h" "24h" "7d" }}
+        - record: ip_country_api:http_latency_bad_ratio:{{ $window }}
+          expr: >-
+            ((clamp_min(
+              sum(rate(ip_country_http_request_duration_seconds_count{namespace={{ $.Release.Namespace | quote }},route="/api/v1/lookups"}[{{ $window }}]))
+              - sum(rate(ip_country_http_request_duration_seconds_bucket{namespace={{ $.Release.Namespace | quote }},route="/api/v1/lookups",le={{ $.Values.observability.slo.latencyTargetSeconds | quote }}}[{{ $window }}])), 0)
+            / clamp_min(sum(rate(ip_country_http_request_duration_seconds_count{namespace={{ $.Release.Namespace | quote }},route="/api/v1/lookups"}[{{ $window }}])), 0.000000000001))
+            and on() (sum(increase(ip_country_http_request_duration_seconds_count{namespace={{ $.Release.Namespace | quote }},route="/api/v1/lookups"}[{{ $window }}])) > 0))
+        {{- end }}
+        - record: ip_country_api:cache_hit_ratio:5m
+          expr: >-
+            ((sum(rate(ip_country_lookup_total{namespace={{ .Release.Namespace | quote }},source="database",result="success"}[5m]))
+            / clamp_min(sum(rate(ip_country_lookup_total{namespace={{ .Release.Namespace | quote }},result="success"}[5m])), 0.000000000001))
+            and on() (sum(increase(ip_country_lookup_total{namespace={{ .Release.Namespace | quote }},result="success"}[5m])) > 0))
+        - record: ip_country_api:provider_error_ratio:5m
+          expr: >-
+            ((((sum(rate(ip_country_provider_requests_total{namespace={{ .Release.Namespace | quote }},result!="success"}[5m])) or vector(0))
+            / clamp_min(sum(rate(ip_country_provider_requests_total{namespace={{ .Release.Namespace | quote }}}[5m])), 0.000000000001))
+            and on() (sum(increase(ip_country_provider_requests_total{namespace={{ .Release.Namespace | quote }}}[5m])) > 0)) or vector(0))
+        - record: ip_country_api:database_error_ratio:5m
+          expr: >-
+            (((sum(rate(ip_country_database_errors_total{namespace={{ .Release.Namespace | quote }}}[5m])) or vector(0))
+            / clamp_min(sum(rate(ip_country_database_operations_total{namespace={{ .Release.Namespace | quote }}}[5m])), 0.000000000001))
+            and on() (sum(increase(ip_country_database_operations_total{namespace={{ .Release.Namespace | quote }}}[5m])) > 0))
+        - record: ip_country_api:provider_latency_p95_seconds:5m
+          expr: >-
+            (histogram_quantile(0.95, sum by (le) (rate(ip_country_provider_request_duration_seconds_bucket{namespace={{ .Release.Namespace | quote }}}[5m])))
+            and on() (sum(increase(ip_country_provider_request_duration_seconds_count{namespace={{ .Release.Namespace | quote }}}[5m])) > 0))
+        - record: ip_country_api:database_latency_p95_seconds:5m
+          expr: >-
+            (histogram_quantile(0.95, sum by (le) (rate(ip_country_database_operation_duration_seconds_bucket{namespace={{ .Release.Namespace | quote }}}[5m])))
+            and on() (sum(increase(ip_country_database_operation_duration_seconds_count{namespace={{ .Release.Namespace | quote }}}[5m])) > 0))
+        {{- range $window := list "5m" "1h" "24h" "7d" }}
+        - record: ip_country_api:availability_sli:{{ $window }}
+          expr: 1 - ip_country_api:http_5xx_ratio:{{ $window }}
+          labels:
+            application: ip-country-api
+            namespace: {{ $.Release.Namespace }}
+            slo: availability
+        {{- end }}
+        - record: ip_country_api:availability_budget_consumed_ratio:7d
+          expr: ip_country_api:http_5xx_ratio:7d / (1 - {{ .Values.observability.slo.availabilityTarget }})
+          labels:
+            application: ip-country-api
+            namespace: {{ .Release.Namespace }}
+            slo: availability
+        - record: ip_country_api:availability_budget_remaining_ratio:7d
+          expr: clamp_min(1 - ip_country_api:availability_budget_consumed_ratio:7d, 0)
+          labels:
+            application: ip-country-api
+            namespace: {{ .Release.Namespace }}
+            slo: availability
+        {{- range $window := list "5m" "1h" "24h" "7d" }}
+        - record: ip_country_api:latency_sli:{{ $window }}
+          expr: 1 - ip_country_api:http_latency_bad_ratio:{{ $window }}
+          labels:
+            application: ip-country-api
+            namespace: {{ $.Release.Namespace }}
+            slo: latency
+        {{- end }}
+        - record: ip_country_api:latency_budget_consumed_ratio:7d
+          expr: ip_country_api:http_latency_bad_ratio:7d / (1 - {{ .Values.observability.slo.latencySuccessTarget }})
+          labels:
+            application: ip-country-api
+            namespace: {{ .Release.Namespace }}
+            slo: latency
+        - record: ip_country_api:latency_budget_remaining_ratio:7d
+          expr: clamp_min(1 - ip_country_api:latency_budget_consumed_ratio:7d, 0)
+          labels:
+            application: ip-country-api
+            namespace: {{ .Release.Namespace }}
+            slo: latency
+        {{- range $window := list "5m" "1h" "6h" "24h" }}
+        - record: ip_country_api:availability_burn_rate:{{ $window }}
+          expr: ip_country_api:http_5xx_ratio:{{ $window }} / (1 - {{ $.Values.observability.slo.availabilityTarget }})
+          labels:
+            application: ip-country-api
+            namespace: {{ $.Release.Namespace }}
+            slo: availability
+        {{- end }}
+        {{- range $window := list "5m" "1h" "6h" "24h" }}
+        - record: ip_country_api:latency_burn_rate:{{ $window }}
+          expr: ip_country_api:http_latency_bad_ratio:{{ $window }} / (1 - {{ $.Values.observability.slo.latencySuccessTarget }})
+          labels:
+            application: ip-country-api
+            namespace: {{ $.Release.Namespace }}
+            slo: latency
+        {{- end }}
+{{- end }}

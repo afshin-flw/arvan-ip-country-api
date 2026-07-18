@@ -22,3 +22,4 @@ data/
 .generated/
 deploy/environments/**/values.*.local.yaml
 deploy/environments/**/values.*.local.yml
+deploy/results/*.json

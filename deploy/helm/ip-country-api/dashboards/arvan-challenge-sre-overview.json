@@ -1,0 +1,1795 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Primary cross-layer operational view for the challenge service.",
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Active alerts",
+      "type": "link",
+      "url": "/alerting/list?view=state"
+    },
+    {
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "API Performance",
+      "type": "link",
+      "url": "/d/ip-country-api-performance"
+    },
+    {
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "CloudNativePG",
+      "type": "link",
+      "url": "/d/cloudnativepg-sre-performance"
+    },
+    {
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "K3s Reliability",
+      "type": "link",
+      "url": "/d/k3s-reliability-capacity"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Executive service status",
+      "description": "A fast health check across the application, database, Kubernetes, and monitoring layers.",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Overall service health",
+      "description": "One means the application, PostgreSQL exporters, and all three nodes are healthy.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bool",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(scalar(kube_deployment_status_replicas_available{namespace=\"__APP_NAMESPACE__\",deployment=\"ip-country-api\"} >= bool 2) * scalar(min(cnpg_collector_up{namespace=\"database\"}) >= bool 1) * scalar(sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"}) >= bool 3))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Application ready replicas",
+      "description": "Ready application replicas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "kube_deployment_status_replicas_available{namespace=\"__APP_NAMESPACE__\",deployment=\"ip-country-api\"}",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "PostgreSQL healthy instances",
+      "description": "CloudNativePG instances reporting a healthy collector.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(cnpg_collector_up{namespace=\"database\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 4
+    },
+    {
+      "type": "stat",
+      "title": "Current PostgreSQL Primary",
+      "description": "Expected current Primary count is one.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(cnpg_pg_replication_in_recovery{namespace=\"database\"} == 0)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 5
+    },
+    {
+      "type": "stat",
+      "title": "Synchronous standbys",
+      "description": "Synchronous standby count reported by the Primary.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(cnpg_synchronous_standby_count{namespace=\"database\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 6
+    },
+    {
+      "type": "stat",
+      "title": "Kubernetes ready nodes",
+      "description": "Nodes whose Ready condition is true.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 8,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 7
+    },
+    {
+      "type": "stat",
+      "title": "Application scrape targets",
+      "description": "Application targets currently UP in Prometheus.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(up{namespace=\"__APP_NAMESPACE__\",service=\"ip-country-api\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 8
+    },
+    {
+      "type": "stat",
+      "title": "Critical alerts",
+      "description": "Currently firing critical alerts.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 8,
+        "w": 3,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(ALERTS{alertstate=\"firing\",severity=\"critical\"}) or vector(0)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 9
+    },
+    {
+      "type": "stat",
+      "title": "Warning alerts",
+      "description": "Currently firing warning alerts.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 8,
+        "w": 3,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(ALERTS{alertstate=\"firing\",severity=\"warning\"}) or vector(0)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 10
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Golden signals",
+      "description": "Traffic, errors, latency, and saturation for the service and its persistence layer.",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Lookup request rate",
+      "description": "Five-minute lookup API request rate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:http_requests:rate5m",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 12
+    },
+    {
+      "type": "timeseries",
+      "title": "5xx error ratio",
+      "description": "Server-error ratio for eligible lookup requests.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 16,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:http_5xx_ratio:5m",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 13
+    },
+    {
+      "type": "timeseries",
+      "title": "API latency percentiles",
+      "description": "Lookup API latency percentiles over five minutes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 16,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:http_latency_p50_seconds:5m",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:http_latency_p95_seconds:5m",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:http_latency_p99_seconds:5m",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "id": 14
+    },
+    {
+      "type": "timeseries",
+      "title": "Application CPU",
+      "description": "CPU consumed by each API Pod.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"__APP_NAMESPACE__\",container=\"api\"}[5m]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "id": 15
+    },
+    {
+      "type": "timeseries",
+      "title": "Application memory",
+      "description": "Working-set memory by API Pod.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 23,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"__APP_NAMESPACE__\",container=\"api\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "id": 16
+    },
+    {
+      "type": "timeseries",
+      "title": "Database connection utilization",
+      "description": "Application database backends divided by configured maximum connections.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 23,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(cnpg_backends_total{namespace=\"database\",datname=\"ip_country\"}) / max(cnpg_pg_settings_setting{namespace=\"database\",name=\"max_connections\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 17
+    },
+    {
+      "type": "timeseries",
+      "title": "PostgreSQL PVC utilization",
+      "description": "Used capacity for CloudNativePG PVCs.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * sum(kubelet_volume_stats_used_bytes{exported_namespace=\"database\"}) by (persistentvolumeclaim) / sum(kubelet_volume_stats_capacity_bytes{exported_namespace=\"database\"}) by (persistentvolumeclaim)",
+          "legendFormat": "{{persistentvolumeclaim}}",
+          "refId": "A"
+        }
+      ],
+      "id": 18
+    },
+    {
+      "id": 19,
+      "type": "row",
+      "title": "Seven-day SLO",
+      "description": "Rolling SLO status. Only the currently retained history contributes while the service is younger than seven days.",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Availability SLI (7d)",
+      "description": "Seven-day availability SLI from lookup API 5xx events.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0.98,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:availability_sli:7d",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 20
+    },
+    {
+      "type": "stat",
+      "title": "Availability target",
+      "description": "Availability objective: 99.5 percent.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 38,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(0.995)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 21
+    },
+    {
+      "type": "gauge",
+      "title": "Availability budget consumed",
+      "description": "Consumed availability error budget.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 38,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:availability_budget_consumed_ratio:7d",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 22
+    },
+    {
+      "type": "gauge",
+      "title": "Availability budget remaining",
+      "description": "Remaining availability error budget.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 38,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:availability_budget_remaining_ratio:7d",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 23
+    },
+    {
+      "type": "timeseries",
+      "title": "Availability burn rates",
+      "description": "Availability error-budget burn across alert windows.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:availability_burn_rate:5m",
+          "legendFormat": "5m",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:availability_burn_rate:1h",
+          "legendFormat": "1h",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:availability_burn_rate:6h",
+          "legendFormat": "6h",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:availability_burn_rate:24h",
+          "legendFormat": "24h",
+          "refId": "D"
+        }
+      ],
+      "id": 24
+    },
+    {
+      "type": "gauge",
+      "title": "Latency SLI (7d)",
+      "description": "Share of eligible requests completed within 500 ms.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0.8,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 45,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:latency_sli:7d",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 25
+    },
+    {
+      "type": "stat",
+      "title": "Latency target",
+      "description": "Latency objective: 95 percent below 500 ms.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 45,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(0.95)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 26
+    },
+    {
+      "type": "gauge",
+      "title": "Latency budget consumed",
+      "description": "Consumed latency error budget.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:latency_budget_consumed_ratio:7d",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 27
+    },
+    {
+      "type": "gauge",
+      "title": "Latency budget remaining",
+      "description": "Remaining latency error budget.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 52,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:latency_budget_remaining_ratio:7d",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 28
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency burn rates",
+      "description": "Latency error-budget burn across alert windows.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:latency_burn_rate:5m",
+          "legendFormat": "5m",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:latency_burn_rate:1h",
+          "legendFormat": "1h",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:latency_burn_rate:6h",
+          "legendFormat": "6h",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:latency_burn_rate:24h",
+          "legendFormat": "24h",
+          "refId": "D"
+        }
+      ],
+      "id": 29
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Dependency health",
+      "description": "Provider, PostgreSQL, cache, replication, and etcd indicators used to localize service risk.",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Provider error ratio",
+      "description": "Provider error ratio when provider traffic exists.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 60,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:provider_error_ratio:5m",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 31
+    },
+    {
+      "type": "timeseries",
+      "title": "Provider p95 latency",
+      "description": "Cumulative IPinfo p95 latency for the current application Pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 60,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (ip_country_provider_request_duration_seconds_bucket{namespace=\"__APP_NAMESPACE__\"}))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 32
+    },
+    {
+      "type": "timeseries",
+      "title": "Database error ratio",
+      "description": "Application database-operation error ratio.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 60,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:database_error_ratio:5m",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 33
+    },
+    {
+      "type": "timeseries",
+      "title": "Database p95 latency",
+      "description": "Application-observed PostgreSQL p95 operation latency.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 67,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:database_latency_p95_seconds:5m",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 34
+    },
+    {
+      "type": "timeseries",
+      "title": "Cache hit ratio",
+      "description": "Database cache hits among successful lookups.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 67,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ip_country_api:cache_hit_ratio:5m",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "id": 35
+    },
+    {
+      "type": "timeseries",
+      "title": "Replication lag",
+      "description": "CloudNativePG replay lag by instance.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 67,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "cnpg_pg_replication_lag{namespace=\"database\"}",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "id": 36
+    },
+    {
+      "type": "timeseries",
+      "title": "etcd leader status",
+      "description": "One series should identify the current etcd leader.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bool"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 74,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "etcd_server_is_leader{job=\"k3s-etcd\"}",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "id": 37
+    },
+    {
+      "id": 38,
+      "type": "row",
+      "title": "Service topology",
+      "description": "Placement and readiness relationships across application Pods, PostgreSQL instances, and K3s nodes.",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 81,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "Application Pod placement",
+      "description": "Application Pod-to-node placement.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "gridPos": {
+        "x": 0,
+        "y": 82,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "kube_pod_info{namespace=\"__APP_NAMESPACE__\",pod=~\"ip-country-api-.*\"}",
+          "legendFormat": "{{pod}} → {{node}}",
+          "refId": "A"
+        }
+      ],
+      "id": 39
+    },
+    {
+      "type": "table",
+      "title": "PostgreSQL roles",
+      "description": "Zero is Primary and one is Replica for each PostgreSQL Pod.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "gridPos": {
+        "x": 12,
+        "y": 82,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "cnpg_pg_replication_in_recovery{namespace=\"database\"}",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "id": 40
+    },
+    {
+      "type": "state-timeline",
+      "title": "Node readiness",
+      "description": "Ready state for each K3s node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "gridPos": {
+        "x": 0,
+        "y": 89,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "kube_node_status_condition{condition=\"Ready\",status=\"true\"}",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "id": 41
+    },
+    {
+      "type": "timeseries",
+      "title": "Deployment desired vs available",
+      "description": "Desired and available application replicas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 89,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "kube_deployment_spec_replicas{namespace=\"__APP_NAMESPACE__\",deployment=\"ip-country-api\"}",
+          "legendFormat": "desired",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "kube_deployment_status_replicas_available{namespace=\"__APP_NAMESPACE__\",deployment=\"ip-country-api\"}",
+          "legendFormat": "available",
+          "refId": "B"
+        }
+      ],
+      "id": 42
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [
+    "arvan-challenge",
+    "sre",
+    "provisioned"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Arvan Challenge — SRE Service Overview",
+  "uid": "arvan-challenge-sre-overview",
+  "version": 1,
+  "weekStart": ""
+}
