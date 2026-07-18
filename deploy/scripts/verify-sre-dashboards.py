@@ -39,6 +39,22 @@ SUBSTITUTIONS = {
     },
 }
 
+GENERIC_VARIABLES = {
+    "cluster": ".*",
+    "instance": ".*",
+    "integration": ".*",
+    "job": ".*",
+    "namespace": ".*",
+    "node": ".*",
+    "pod": ".*",
+    "route": ".*",
+    "service": ".*",
+    "status_code": ".*",
+    "type": ".*",
+    "volume": ".*",
+    "workload": ".*",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class Check:
@@ -103,9 +119,12 @@ def prometheus_query(base_url: str, expression: str, timeout: float) -> dict[str
 
 
 def render_expression(uid: str, expression: str, namespace: str) -> str:
-    rendered = expression.replace("__APP_NAMESPACE__", namespace)
-    for before, after in SUBSTITUTIONS[uid].items():
+    rendered = expression.replace("__APP_NAMESPACE__", namespace).replace("$__rate_interval", "5m")
+    for before, after in SUBSTITUTIONS.get(uid, {}).items():
         rendered = rendered.replace(before, after)
+    for name, value in GENERIC_VARIABLES.items():
+        for token in (f"${{{name}:regex}}", f"${{{name}}}", f"${name}"):
+            rendered = rendered.replace(token, value)
     return rendered
 
 
@@ -132,12 +151,10 @@ def main() -> int:
     checks: list[Check] = []
     dashboard_counts: dict[str, int] = {}
     dashboard_dirs = args.dashboard_dir or [DEFAULT_DASHBOARD_DIR]
-    paths = sorted({path for directory in dashboard_dirs for path in directory.glob("*.json")})
+    paths = sorted({path for directory in dashboard_dirs for path in directory.rglob("*.json")})
     for path in paths:
         payload = json.loads(path.read_text(encoding="utf-8"))
         uid = payload["uid"]
-        if uid not in SUBSTITUTIONS:
-            raise ValueError(f"no validation substitutions configured for {uid}")
         count = 0
         for panel_payload in iter_panels(payload):
             panel_title = str(panel_payload["title"])
