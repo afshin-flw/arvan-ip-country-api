@@ -27,13 +27,9 @@ runtime:
   metricsEnabled: true
   corsAllowedOrigins: []
   trustedHosts:
-    - localhost
-    - 127.0.0.1
-    - 188.121.120.245
-    - 37.152.186.253
-    - 95.38.235.15
-    - ip-country-api
-    - ip-country-api.ip-country-api.svc.cluster.local
+    # Prometheus Operator scrapes dynamic Pod IPs directly in this challenge.
+    # The application does not use Host for routing, redirects, or authorization.
+    - "*"
 
 service:
   type: NodePort

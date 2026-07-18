@@ -10,6 +10,11 @@ and a URL-encoded `postgresql+psycopg://` URL for
 `ip-country-postgres-rw.database.svc.cluster.local:5432/ip_country`. Never print
 or commit either value.
 
+The Arvan values use `trustedHosts: ["*"]` because Prometheus Operator scrapes
+the two application endpoints through dynamic Pod IPs. This is a challenge-only
+runtime override; the reusable chart default stays restricted. The service does
+not use the Host header for routing, redirects, or authorization.
+
 From the controller, use the pinned project-local Helm v3.21.3 binary and the
 explicit kubeconfig under
 `/home/arvan/ansible-k3s-preparation/.generated/arvan/kubeconfig`:
