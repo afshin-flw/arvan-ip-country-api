@@ -7,7 +7,7 @@ CHART="${APP_ROOT}/deploy/helm/ip-country-api"
 VALUES="${VALUES:-${APP_ROOT}/deploy/environments/challenge/values.challenge.local.yaml}"
 KUBECONFIG_PATH="${KUBECONFIG_PATH:-/home/arvan/ansible-k3s-preparation/.generated/arvan/kubeconfig}"
 KNOWN_HOSTS="${KNOWN_HOSTS:-/home/arvan/ansible-k3s-preparation/.generated/arvan/known_hosts}"
-SSH_KEY="${SSH_KEY:-/home/ubuntu/.ssh/id_rsa}"
+SSH_KEY="${SSH_KEY:-}"
 
 if command -v helm >/dev/null 2>&1; then
   HELM="${HELM:-$(command -v helm)}"
@@ -19,6 +19,15 @@ test -x "${HELM}" || { echo "Helm binary not found: ${HELM}" >&2; exit 1; }
 test -f "${VALUES}" || { echo "Local values file not found: ${VALUES}" >&2; exit 1; }
 test -f "${KUBECONFIG_PATH}" || { echo "Kubeconfig not found: ${KUBECONFIG_PATH}" >&2; exit 1; }
 test -f "${KNOWN_HOSTS}" || { echo "SSH known-hosts file not found: ${KNOWN_HOSTS}" >&2; exit 1; }
+if [[ -z "${SSH_KEY}" ]]; then
+  for candidate in /root/.ssh/id_rsa /home/ubuntu/.ssh/id_rsa; do
+    if [[ -r "${candidate}" ]]; then
+      SSH_KEY="${candidate}"
+      break
+    fi
+  done
+fi
+test -r "${SSH_KEY}" || { echo "SSH key not found" >&2; exit 1; }
 
 server_url="$(awk '$1 == "server:" {print $2; exit}' "${KUBECONFIG_PATH}")"
 server_host="${server_url#https://}"
@@ -38,7 +47,7 @@ ssh_options=(
 )
 
 existing_nodeport="$(
-  ssh "${ssh_options[@]}" "root@${server_host}" k3s kubectl get services -A -o json |
+  ssh "${ssh_options[@]}" "ubuntu@${server_host}" sudo k3s kubectl get services -A -o json |
     jq -r '.items[] | select(any(.spec.ports[]?; .nodePort == 30080)) | (.metadata.namespace + "/" + .metadata.name)'
 )"
 if test -n "${existing_nodeport}" && test "${existing_nodeport}" != "ip-country-api/ip-country-api"; then
