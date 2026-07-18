@@ -55,6 +55,7 @@ GENERIC_VARIABLES = {
     "workload": ".*",
 }
 
+
 @dataclass(frozen=True, slots=True)
 class Check:
     dashboard: str
@@ -252,9 +253,7 @@ def main() -> int:
         for items in [[item for item in checks if item.dashboard == uid]]
     }
     if invalid or unexplained_empty or non_finite:
-        summary["failures"] = [
-            asdict(item) for item in (invalid + unexplained_empty + non_finite)
-        ]
+        summary["failures"] = [asdict(item) for item in (invalid + unexplained_empty + non_finite)]
     rendered_summary = json.dumps(summary, indent=2, sort_keys=True)
     print(rendered_summary)
     if args.output_json:

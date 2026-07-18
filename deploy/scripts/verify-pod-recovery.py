@@ -10,6 +10,7 @@ import subprocess
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,7 +31,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--request-timeout", type=float, default=3.0)
     parser.add_argument("--recovery-timeout", type=float, default=180.0)
     parser.add_argument("--output-json", type=Path, required=True)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if any(urllib.parse.urlparse(url).scheme not in {"http", "https"} for url in args.base_url):
+        parser.error("--base-url supports only http and https URLs")
+    return args
 
 
 def utc_now() -> str:
@@ -54,20 +58,19 @@ class Cluster:
         ]
 
     def run(self, *arguments: str) -> str:
-        completed = subprocess.run(
+        # The fixed argv prefix uses OpenSSH without a shell; remaining values
+        # are passed as distinct kubectl arguments.
+        completed = subprocess.run(  # noqa: S603
             [*self.prefix, *arguments],
             check=True,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
         return completed.stdout
 
 
 def pod_inventory(cluster: Cluster, namespace: str, selector: str) -> list[dict[str, Any]]:
-    payload = json.loads(
-        cluster.run("-n", namespace, "get", "pods", "-l", selector, "-o", "json")
-    )
+    payload = json.loads(cluster.run("-n", namespace, "get", "pods", "-l", selector, "-o", "json"))
     pods = []
     for item in payload["items"]:
         statuses = item.get("status", {}).get("containerStatuses", [])
@@ -104,14 +107,16 @@ def main() -> int:
             base_url = args.base_url[request_number % len(args.base_url)].rstrip("/")
             request_number += 1
             url = f"{base_url}/api/v1/lookups"
-            request = urllib.request.Request(
+            request = urllib.request.Request(  # noqa: S310 -- schemes validated above
                 url,
                 data=json.dumps({"ip": args.cached_ip}).encode(),
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(request, timeout=args.request_timeout) as response:
+                with urllib.request.urlopen(  # noqa: S310 -- schemes validated above
+                    request, timeout=args.request_timeout
+                ) as response:
                     code = response.status
                     response.read()
                 with lock:
