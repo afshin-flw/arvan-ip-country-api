@@ -61,6 +61,26 @@ python3 deploy/scripts/verify-sre-dashboards.py \
 
 The validator parses the application dashboard directory and any repeated infrastructure `--dashboard-dir` arguments, renders known Helm/Grafana variables with live challenge values, checks every PromQL expression, rejects API/parse errors, rejects NaN/Inf, and rejects unexplained empty results.
 
+The final Arvan catalog validation evaluated 389 expressions across 18 JSON
+dashboards: all 389 were valid and returned finite, useful data, including 86
+legitimate zero-valued results. There were no parse/API errors, unexplained
+empty results, or non-finite values.
+
+The bounded Pod recovery check is run from the controller with explicit SSH
+identity and known-hosts inputs. It deletes one application Pod and keeps
+cached POST lookups flowing until the replacement is Ready:
+
+```bash
+python3 deploy/scripts/verify-pod-recovery.py \
+  --ssh-host 188.121.120.245 \
+  --ssh-key /root/.ssh/id_rsa \
+  --known-hosts /home/arvan/ansible-k3s-preparation/.generated/arvan/known_hosts \
+  --base-url http://188.121.120.245:30080 \
+  --base-url http://37.152.186.253:30080 \
+  --base-url http://95.38.235.15:30080 \
+  --output-json /home/arvan/.generated/application-pod-recovery.json
+```
+
 ## Limitations
 
 - Prometheus retention is seven days, and the application has not existed for a complete seven-day observation period.

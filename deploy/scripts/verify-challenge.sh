@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KUBECONFIG_PATH="${KUBECONFIG_PATH:-/home/arvan/ansible-k3s-preparation/.generated/arvan/kubeconfig}"
 KNOWN_HOSTS="${KNOWN_HOSTS:-/home/arvan/ansible-k3s-preparation/.generated/arvan/known_hosts}"
-SSH_KEY="${SSH_KEY:-/home/ubuntu/.ssh/id_rsa}"
+SSH_KEY="${SSH_KEY:-}"
 EXPECTED_IMAGE="ghcr.io/afshin-flw/arvan-ip-country-api@sha256:081ba4b3aac7779934329f33ebf98546743a1c27f044f195039209fa46026e85"
 
 if command -v helm >/dev/null 2>&1; then
@@ -15,6 +15,15 @@ fi
 
 test -x "${HELM}"
 test -f "${KUBECONFIG_PATH}"
+if [[ -z "${SSH_KEY}" ]]; then
+  for candidate in /root/.ssh/id_rsa /home/ubuntu/.ssh/id_rsa; do
+    if [[ -r "${candidate}" ]]; then
+      SSH_KEY="${candidate}"
+      break
+    fi
+  done
+fi
+test -r "${SSH_KEY}"
 
 server_url="$(awk '$1 == "server:" {print $2; exit}' "${KUBECONFIG_PATH}")"
 server_host="${server_url#https://}"
@@ -31,12 +40,16 @@ ssh_options=(
   -o GlobalKnownHostsFile=/dev/null
 )
 remote_kubectl() {
-  ssh "${ssh_options[@]}" "root@${server_host}" k3s kubectl "$@"
+  ssh "${ssh_options[@]}" "ubuntu@${server_host}" sudo k3s kubectl "$@"
 }
 
 status_json="$("${HELM}" status ip-country-api --namespace ip-country-api --kubeconfig "${KUBECONFIG_PATH}" -o json)"
 test "$(jq -r '.info.status' <<<"${status_json}")" = deployed
-"${HELM}" get hooks ip-country-api --namespace ip-country-api --kubeconfig "${KUBECONFIG_PATH}" | grep -Eq 'alembic.*upgrade.*head'
+hooks="$("${HELM}" get hooks ip-country-api --namespace ip-country-api --kubeconfig "${KUBECONFIG_PATH}")"
+grep -q 'name: ip-country-api-migrate' <<<"${hooks}"
+grep -q 'alembic' <<<"${hooks}"
+grep -q 'upgrade' <<<"${hooks}"
+grep -q 'head' <<<"${hooks}"
 
 deployment_json="$(remote_kubectl -n ip-country-api get deployment ip-country-api -o json)"
 test "$(jq -r '.status.availableReplicas' <<<"${deployment_json}")" -eq 2
@@ -67,7 +80,7 @@ remote_kubectl -n ip-country-api get servicemonitor ip-country-api >/dev/null
 remote_kubectl -n ip-country-api get prometheusrule ip-country-api >/dev/null
 remote_kubectl -n ip-country-api get configmap ip-country-api-dashboard >/dev/null
 
-ssh "${ssh_options[@]}" "root@${server_host}" bash -s <<'REMOTE_VERIFY'
+ssh "${ssh_options[@]}" "ubuntu@${server_host}" sudo bash -s <<'REMOTE_VERIFY'
 set -Eeuo pipefail
 prom_log=/tmp/ip-country-api-prometheus-port-forward.log
 grafana_log=/tmp/ip-country-api-grafana-port-forward.log

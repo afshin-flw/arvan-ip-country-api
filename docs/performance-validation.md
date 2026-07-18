@@ -41,4 +41,24 @@ The application was deployed recently. Seven-day recording rules use seven-day r
 
 ## Latest challenge evidence
 
-Record the Arvan execution evidence here only after the three public NodePort addresses, cache flow, Prometheus counters, and SLO series have been verified. Historical laboratory-cluster measurements are intentionally not reused as Arvan evidence.
+The 2026-07-18 Arvan run used all three public NodePort addresses, 1,500
+requests, concurrency 20, and cached IP `45.33.32.156`. It completed in
+12.421 seconds at 120.762 requests/second. Client-side latency was 0.122
+seconds p50, 0.407 seconds p95, and 0.665 seconds p99.
+
+- 1,470 requests returned HTTP 200.
+- 30 intentionally invalid requests returned the expected HTTP 422.
+- 1,275 requests exercised the cached lookup path, with 150 root, 45 health,
+  and 30 validation requests completing the bounded mix.
+- There were zero unexpected HTTP or transport failures.
+
+The cache-flow gate used a separate fresh IP: the first request returned
+`source=provider`, the second returned `source=database`, and exactly one row
+was present afterward. Prometheus observed one provider success and one
+database hit for that gate. This is challenge evidence, not a production load
+test or a capacity claim.
+
+The availability recovery gate continuously sent 163 cached lookup requests
+while one application Pod was deleted. All 163 returned HTTP 200; the
+replacement became Ready in 8.575 seconds, and the two Ready replicas again
+occupied distinct nodes.

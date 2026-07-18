@@ -55,7 +55,6 @@ GENERIC_VARIABLES = {
     "workload": ".*",
 }
 
-
 @dataclass(frozen=True, slots=True)
 class Check:
     dashboard: str
@@ -123,6 +122,13 @@ def render_expression(uid: str, expression: str, namespace: str) -> str:
     for before, after in SUBSTITUTIONS.get(uid, {}).items():
         rendered = rendered.replace(before, after)
     for name, value in GENERIC_VARIABLES.items():
+        # Validate the data behind a Grafana selection across every available
+        # value. Exact-match template variables must change operator as well as
+        # value; rendering `instance=".*"` would search for a literal instance
+        # named `.*` and report a false empty result.
+        for token in (f"${{{name}}}", f"${name}"):
+            rendered = rendered.replace(f'=~"{token}"', f'=~"{value}"')
+            rendered = rendered.replace(f'="{token}"', f'=~"{value}"')
         for token in (f"${{{name}:regex}}", f"${{{name}}}", f"${name}"):
             rendered = rendered.replace(token, value)
     return rendered
@@ -231,9 +237,23 @@ def main() -> int:
         "parse_or_api_errors": len(invalid),
         "non_finite_expressions": len(non_finite),
     }
+    summary["dashboard_results"] = {
+        uid: {
+            "total": len(items),
+            "useful": sum(item.useful for item in items),
+            "legitimate_zero": sum(item.legitimate_zero for item in items),
+            "unexplained_empty": sum(
+                item.valid and not item.useful and not item.empty_allowed for item in items
+            ),
+            "api_errors": sum(not item.valid for item in items),
+            "non_finite": sum(not item.finite for item in items),
+        }
+        for uid in sorted(dashboard_counts)
+        for items in [[item for item in checks if item.dashboard == uid]]
+    }
     if invalid or unexplained_empty or non_finite:
         summary["failures"] = [
-            asdict(item) for item in (invalid + unexplained_empty + non_finite)[:30]
+            asdict(item) for item in (invalid + unexplained_empty + non_finite)
         ]
     rendered_summary = json.dumps(summary, indent=2, sort_keys=True)
     print(rendered_summary)
