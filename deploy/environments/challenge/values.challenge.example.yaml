@@ -49,5 +49,21 @@ monitoring:
 
 grafanaDashboard:
   enabled: true
+  folder: "08 — Application"
+
+observability:
+  sreDashboards:
+    enabled: true
+    overviewFolder: "00 — SRE Overview"
+  recordingRules:
+    enabled: true
+  slo:
+    enabled: true
+    window: 7d
+    availabilityTarget: 0.995
+    latencyTargetSeconds: 0.5
+    latencySuccessTarget: 0.95
+  burnRateAlerts:
+    enabled: true
 
 podAnnotations: {}

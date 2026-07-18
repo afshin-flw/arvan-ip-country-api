@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-KUBECONFIG_PATH="${KUBECONFIG_PATH:-/home/arvan/ansible-k3s-preparation/.generated/kubeconfig}"
-KNOWN_HOSTS="${KNOWN_HOSTS:-/home/arvan/ansible-k3s-preparation/.generated/known_hosts}"
+KUBECONFIG_PATH="${KUBECONFIG_PATH:-/home/arvan/ansible-k3s-preparation/.generated/arvan/kubeconfig}"
+KNOWN_HOSTS="${KNOWN_HOSTS:-/home/arvan/ansible-k3s-preparation/.generated/arvan/known_hosts}"
 SSH_KEY="${SSH_KEY:-/home/ubuntu/.ssh/id_rsa}"
 EXPECTED_IMAGE="ghcr.io/afshin-flw/arvan-ip-country-api@sha256:081ba4b3aac7779934329f33ebf98546743a1c27f044f195039209fa46026e85"
 

@@ -22,7 +22,8 @@ spec:
         {{- include "ip-country-api.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
       annotations:
-        checksum/runtime-secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        # Hash only Secret data inputs. Chart metadata changes must not restart Pods.
+        checksum/runtime-secret: {{ toJson .Values.runtime | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

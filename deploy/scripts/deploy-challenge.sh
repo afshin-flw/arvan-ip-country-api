@@ -4,9 +4,9 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CHART="${APP_ROOT}/deploy/helm/ip-country-api"
-VALUES="${APP_ROOT}/deploy/environments/challenge/values.challenge.local.yaml"
-KUBECONFIG_PATH="${KUBECONFIG_PATH:-/home/arvan/ansible-k3s-preparation/.generated/kubeconfig}"
-KNOWN_HOSTS="${KNOWN_HOSTS:-/home/arvan/ansible-k3s-preparation/.generated/known_hosts}"
+VALUES="${VALUES:-${APP_ROOT}/deploy/environments/challenge/values.challenge.local.yaml}"
+KUBECONFIG_PATH="${KUBECONFIG_PATH:-/home/arvan/ansible-k3s-preparation/.generated/arvan/kubeconfig}"
+KNOWN_HOSTS="${KNOWN_HOSTS:-/home/arvan/ansible-k3s-preparation/.generated/arvan/known_hosts}"
 SSH_KEY="${SSH_KEY:-/home/ubuntu/.ssh/id_rsa}"
 
 if command -v helm >/dev/null 2>&1; then

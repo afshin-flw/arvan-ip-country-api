@@ -4,6 +4,8 @@ kind: ConfigMap
 metadata:
   name: {{ include "ip-country-api.fullname" . }}-dashboard
   namespace: {{ .Release.Namespace }}
+  annotations:
+    k8s-sidecar-target-directory: {{ printf "/tmp/dashboards/%s" .Values.grafanaDashboard.folder | quote }}
   labels:
     grafana_dashboard: "1"
     {{- include "ip-country-api.labels" . | nindent 4 }}

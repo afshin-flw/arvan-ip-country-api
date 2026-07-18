@@ -1,10 +1,9 @@
-replicaCount: 2
-
 image:
   repository: ghcr.io/afshin-flw/arvan-ip-country-api
-  tag: ""
-  digest: ""
+  digest: sha256:081ba4b3aac7779934329f33ebf98546743a1c27f044f195039209fa46026e85
   pullPolicy: IfNotPresent
+
+replicaCount: 2
 
 runtime:
   appName: IP Country API
@@ -14,14 +13,14 @@ runtime:
   appPort: 8080
   logLevel: INFO
   logFormat: json
-  databaseUrl: ""
+  databaseUrl: postgresql+psycopg://example-user:replace-me@postgres.example.invalid:5432/ip_country
   databasePoolSize: 5
   databaseMaxOverflow: 5
   databasePoolTimeoutSeconds: 5
   databaseConnectTimeoutSeconds: 5
   geoipProvider: ipinfo
   geoipProviderBaseUrl: https://api.ipinfo.io
-  ipinfoToken: ""
+  ipinfoToken: replace-me
   geoipProviderTimeoutSeconds: 3
   geoipProviderMaxRetries: 2
   geoipCacheTtlSeconds: 2592000
@@ -30,6 +29,11 @@ runtime:
   trustedHosts:
     - localhost
     - 127.0.0.1
+    - 188.121.120.245
+    - 37.152.186.253
+    - 95.38.235.15
+    - ip-country-api
+    - ip-country-api.ip-country-api.svc.cluster.local
 
 service:
   type: NodePort
@@ -47,8 +51,6 @@ resources:
 
 monitoring:
   enabled: true
-  interval: 30s
-  scrapeTimeout: 10s
 
 grafanaDashboard:
   enabled: true
@@ -70,9 +72,3 @@ observability:
     enabled: true
 
 podAnnotations: {}
-
-migration:
-  activeDeadlineSeconds: 300
-  backoffLimit: 2
-
-terminationGracePeriodSeconds: 30
